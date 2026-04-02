@@ -3,3 +3,19 @@ data/
 results/
 __pycache__/
 *.pt
+
+#MEDIA
+# python
+venv/
+__pycache__/
+*.pyc
+
+# env
+.env
+
+# storage (영상/로그)
+storage/
+
+# mac/windows
+.DS_Store
+Thumbs.db

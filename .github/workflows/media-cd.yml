@@ -1,0 +1,35 @@
+name: Media CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/media-ci.yml'
+      - 'MEDIA/**'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/media-ci.yml'
+      - 'MEDIA/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./MEDIA
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show files
+        run: ls -al
+
+      - name: Build media server image
+        run: docker build -t media-server:test .
