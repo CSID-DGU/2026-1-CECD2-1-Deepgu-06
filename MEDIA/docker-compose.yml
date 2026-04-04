@@ -1,9 +1,0 @@
-services:
-  media-server:
-    image: alfg/nginx-rtmp
-    container_name: media-server
-    ports:
-      - "1935:1935"
-      - "8080:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
