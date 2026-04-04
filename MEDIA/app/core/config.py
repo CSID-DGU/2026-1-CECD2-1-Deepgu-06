@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     thumbnails_dir: str = str(STORAGE_DIR / "thumbnails")
     clips_dir: str = str(STORAGE_DIR / "clips")
 
+    ffmpeg_binary: str = r"C:\ffmpeg\ffmpeg-8.1-essentials_build\bin\ffmpeg"
+    hls_time: int = 2
+    hls_list_size: int = 6
+    segment_filename: str = "segment_%03d.ts"
+
+
+    instance_id: str = "media-instance-1"
     class Config:
         env_file = ".env"
         extra = "ignore"
