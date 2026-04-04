@@ -145,7 +145,6 @@ jobs:
               --name $CONTAINER_NAME \
               --restart unless-stopped \
               -p 9000:9000 \
-              -p 1935:1935 \
               -v $STORAGE_ROOT:/app/storage \
               -e APP_ENV=prod \
               -e APP_HOST=0.0.0.0 \
