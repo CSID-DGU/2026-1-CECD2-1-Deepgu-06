@@ -42,17 +42,33 @@ jobs:
       - name: Smoke test container
         run: |
           docker run -d --name media-ci-test -p 9000:9000 media-server:ci-${{ github.sha }}
+
+          echo "=== container status ==="
+          docker ps -a
+
           for i in {1..20}; do
+            if ! docker ps --format '{{.Names}}' | grep -q '^media-ci-test$'; then
+              echo "container exited early"
+              docker logs media-ci-test || true
+              exit 1
+            fi
+
             code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
             if [ "$code" = "200" ]; then
               echo "health check passed"
-              break
+              docker stop media-ci-test
+              docker rm media-ci-test
+              exit 0
             fi
+
             sleep 3
           done
-          curl -f http://127.0.0.1:9000/health
-          docker stop media-ci-test
-          docker rm media-ci-test
+
+          echo "health check failed"
+          docker logs media-ci-test || true
+          docker stop media-ci-test || true
+          docker rm media-ci-test || true
+          exit 1
 
   cd:
     name: Push to ECR and Deploy to EC2
@@ -105,21 +121,22 @@ jobs:
 
             docker pull $IMAGE_URI:$IMAGE_TAG
 
-            docker stop media-server || true
-            docker rm media-server || true
+            docker stop media-api || true
+            docker rm media-api || true
 
-            mkdir -p /home/${{ secrets.EC2_USER }}/media-storage/hls
+            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/hls
+            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/frames
+            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/clips
 
             docker run -d \
-              --name media-server \
+              --name media-api \
               --restart unless-stopped \
               -p 9000:9000 \
-              -v /home/${{ secrets.EC2_USER }}/media-storage:/app/storage \
+              -v /home/${{ secrets.EC2_USER }}/media-server/storage:/app/storage \
               -e APP_ENV=prod \
               -e APP_HOST=0.0.0.0 \
               -e APP_PORT=9000 \
-              -e FFMPEG_BINARY=/usr/bin/ffmpeg \
-              -e HLS_DIR=/app/storage/hls \
+              -e FFMPEG_BINARY=ffmpeg \
               -e INSTANCE_ID=media-ec2-1 \
               $IMAGE_URI:$IMAGE_TAG
 
@@ -140,5 +157,5 @@ jobs:
               sleep 3
             done
             echo "health check failed"
-            docker logs media-server
+            docker logs media-api
             exit 1
