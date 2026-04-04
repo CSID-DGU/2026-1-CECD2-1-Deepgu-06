@@ -1,35 +1,144 @@
-name: Media CI
+name: MEDIA CI/CD
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
     paths:
-      - '.github/workflows/media-ci.yml'
-      - 'MEDIA/**'
+      - ".github/workflows/media-cd.yml"
+      - "MEDIA/**"
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
     paths:
-      - '.github/workflows/media-ci.yml'
-      - 'MEDIA/**'
+      - ".github/workflows/media-cd.yml"
+      - "MEDIA/**"
   workflow_dispatch:
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
-  docker-build:
+  ci:
+    name: Build Test Image
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: ./MEDIA
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show files
-        run: ls -al
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build media server image
-        run: docker build -t media-server:test .
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./MEDIA
+          file: ./MEDIA/Dockerfile
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: media-server:ci-${{ github.sha }}
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name media-ci-test -p 9000:9000 media-server:ci-${{ github.sha }}
+          for i in {1..20}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
+            if [ "$code" = "200" ]; then
+              echo "health check passed"
+              break
+            fi
+            sleep 3
+          done
+          curl -f http://127.0.0.1:9000/health
+          docker stop media-ci-test
+          docker rm media-ci-test
+
+  cd:
+    name: Push to ECR and Deploy to EC2
+    needs: ci
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: ./MEDIA
+          file: ./MEDIA/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server:dev-${{ github.sha }}
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server:latest
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server
+            IMAGE_TAG=dev-${{ github.sha }}
+
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+              docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+            docker pull $IMAGE_URI:$IMAGE_TAG
+
+            docker stop media-server || true
+            docker rm media-server || true
+
+            mkdir -p /home/${{ secrets.EC2_USER }}/media-storage/hls
+
+            docker run -d \
+              --name media-server \
+              --restart unless-stopped \
+              -p 9000:9000 \
+              -v /home/${{ secrets.EC2_USER }}/media-storage:/app/storage \
+              -e APP_ENV=prod \
+              -e APP_HOST=0.0.0.0 \
+              -e APP_PORT=9000 \
+              -e FFMPEG_BINARY=/usr/bin/ffmpeg \
+              -e HLS_DIR=/app/storage/hls \
+              -e INSTANCE_ID=media-ec2-1 \
+              $IMAGE_URI:$IMAGE_TAG
+
+      - name: Health check on EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            for i in {1..20}; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
+              if [ "$code" = "200" ]; then
+                echo "health check passed"
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "health check failed"
+            docker logs media-server
+            exit 1
