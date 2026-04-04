@@ -17,6 +17,10 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  ECR_REPOSITORY: media-server
+  CONTAINER_NAME: media-api
+
 jobs:
   ci:
     name: Build Test Image
@@ -41,6 +45,8 @@ jobs:
 
       - name: Smoke test container
         run: |
+          set -euxo pipefail
+
           docker run -d --name media-ci-test -p 9000:9000 media-server:ci-${{ github.sha }}
 
           echo "=== container status ==="
@@ -100,8 +106,8 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server:dev-${{ github.sha }}
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server:latest
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:dev-${{ github.sha }}
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
 
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.2.2
@@ -110,35 +116,50 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
+            set -euxo pipefail
 
-            IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/media-server
+            IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
             IMAGE_TAG=dev-${{ github.sha }}
+            CONTAINER_NAME=${{ env.CONTAINER_NAME }}
+            STORAGE_ROOT=/home/${{ secrets.EC2_USER }}/media-server/storage
+
+            whoami
+            groups
+            aws --version
+            sudo docker --version
 
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-              docker login --username AWS --password-stdin \
+              sudo docker login --username AWS --password-stdin \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-            docker pull $IMAGE_URI:$IMAGE_TAG
+            sudo docker pull $IMAGE_URI:$IMAGE_TAG
 
-            docker stop media-api || true
-            docker rm media-api || true
+            sudo docker stop $CONTAINER_NAME || true
+            sudo docker rm $CONTAINER_NAME || true
 
-            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/hls
-            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/frames
-            mkdir -p /home/${{ secrets.EC2_USER }}/media-server/storage/clips
+            sudo mkdir -p $STORAGE_ROOT/hls
+            sudo mkdir -p $STORAGE_ROOT/frames
+            sudo mkdir -p $STORAGE_ROOT/clips
 
-            docker run -d \
-              --name media-api \
+            sudo docker run -d \
+              --name $CONTAINER_NAME \
               --restart unless-stopped \
               -p 9000:9000 \
-              -v /home/${{ secrets.EC2_USER }}/media-server/storage:/app/storage \
+              -v $STORAGE_ROOT:/app/storage \
               -e APP_ENV=prod \
               -e APP_HOST=0.0.0.0 \
               -e APP_PORT=9000 \
               -e FFMPEG_BINARY=ffmpeg \
               -e INSTANCE_ID=media-ec2-1 \
               $IMAGE_URI:$IMAGE_TAG
+
+            sleep 5
+
+            if ! sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+              echo "container exited early"
+              sudo docker logs $CONTAINER_NAME || true
+              exit 1
+            fi
 
       - name: Health check on EC2
         uses: appleboy/ssh-action@v1.2.2
@@ -147,15 +168,26 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
+            set -euxo pipefail
+
+            CONTAINER_NAME=${{ env.CONTAINER_NAME }}
+
             for i in {1..20}; do
+              if ! sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+                echo "container is not running"
+                sudo docker logs $CONTAINER_NAME || true
+                exit 1
+              fi
+
               code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
               if [ "$code" = "200" ]; then
                 echo "health check passed"
                 exit 0
               fi
+
               sleep 3
             done
+
             echo "health check failed"
-            docker logs media-api
+            sudo docker logs $CONTAINER_NAME || true
             exit 1
