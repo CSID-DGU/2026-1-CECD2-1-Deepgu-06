@@ -1,10 +1,11 @@
+# AI
 venv/
 data/
-results/
+outputs/
 __pycache__/
 *.pt
 
-#MEDIA
+# MEDIA
 # python
 venv/
 __pycache__/
