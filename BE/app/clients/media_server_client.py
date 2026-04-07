@@ -11,11 +11,14 @@ class MediaServerClient:
         self.timeout = settings.media_server_timeout_seconds
 
     async def start_stream(self, payload: MediaStartRequest) -> dict:
-        url = f"{self.base_url}/internal/streams/start"
+        url = f"{self.base_url}/streams/{payload.camera_id}/start"
+        body = {
+            "stream_key": payload.stream_key
+        }
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, json=payload.model_dump())
+                response = await client.post(url, json=body)
         except httpx.RequestError as e:
             raise AppException(
                 status_code=502,
@@ -41,11 +44,11 @@ class MediaServerClient:
         return body["data"]
 
     async def stop_stream(self, payload: MediaStopRequest) -> dict:
-        url = f"{self.base_url}/internal/streams/stop"
+        url = f"{self.base_url}/streams/{payload.camera_id}/stop"
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, json=payload.model_dump())
+                response = await client.post(url)
         except httpx.RequestError as e:
             raise AppException(
                 status_code=502,
