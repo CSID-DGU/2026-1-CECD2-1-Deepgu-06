@@ -1,6 +1,6 @@
 import httpx
 
-from app.config import settings
+from app.core.config import settings
 from app.core.exceptions import AppException
 from app.schemas.stream import MediaStartRequest, MediaStopRequest
 
