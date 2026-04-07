@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.schemas.common import ApiResponse
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/cameras", tags=["streams"])
 async def start_stream(
     camera_id: str,
     _: StreamStartRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     service = StreamService(db)
     data = await service.start_stream(camera_id)
@@ -36,7 +36,7 @@ async def start_stream(
 )
 async def stop_stream(
     camera_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     service = StreamService(db)
     data = await service.stop_stream(camera_id)
@@ -50,7 +50,7 @@ async def stop_stream(
 )
 async def get_stream_status(
     camera_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     service = StreamService(db)
     data = await service.get_stream_status(camera_id)
@@ -66,7 +66,7 @@ async def get_stream_sessions(
     camera_id: str,
     page: int = Query(default=0, ge=0),
     size: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     service = StreamService(db)
     data = await service.get_stream_sessions(camera_id, page, size)
