@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.core.exceptions import AppException
-
 
 def add_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppException)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-
+from api.core.config import settings
 from app.services.hls_service import (
     get_stream_status,
     list_streams,
@@ -18,7 +18,12 @@ class StartStreamRequest(BaseModel):
 @router.post("/{camera_id}/start")
 def start_stream(camera_id: str, request: StartStreamRequest):
     try:
-        input_url = f"rtmp://127.0.0.1:1935/stream/{request.stream_key}"
+        input_url = (
+    f"rtmp://{settings.RTMP_HOST}:"
+    f"{settings.RTMP_PORT}/"
+    f"{settings.RTMP_APP}/"
+    f"{request.stream_key}"
+)
 
         return start_hls_stream(
             camera_id=camera_id,
