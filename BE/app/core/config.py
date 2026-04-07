@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
-    media_server_base_urlmedia: str = "http://media-server:9000"
+    media_server_base_url: str = "http://media-server:9000"
     media_server_timeout_seconds: int = 10
 
     @property
