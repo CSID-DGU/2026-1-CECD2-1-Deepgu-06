@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from api.core.config import settings
+from app.core.config import settings
 from app.services.hls_service import (
     get_stream_status,
     list_streams,
