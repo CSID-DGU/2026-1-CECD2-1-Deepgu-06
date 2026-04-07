@@ -19,9 +19,9 @@ class StartStreamRequest(BaseModel):
 def start_stream(camera_id: str, request: StartStreamRequest):
     try:
         input_url = (
-    f"rtmp://{settings.RTMP_HOST}:"
-    f"{settings.RTMP_PORT}/"
-    f"{settings.RTMP_APP}/"
+    f"rtmp://{settings.rtmp_host}:"
+    f"{settings.rtmp_port}/"
+    f"{settings.rtmp_app}/"
     f"{request.stream_key}"
 )
 
