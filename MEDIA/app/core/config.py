@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     segment_filename: str = "segment_%03d.ts"
 
 
+    RTMP_HOST: str
+    RTMP_PORT: int = 1935
+    RTMP_APP: str = "stream"
+    
     instance_id: str = "media-instance-1"
     class Config:
         env_file = ".env"
