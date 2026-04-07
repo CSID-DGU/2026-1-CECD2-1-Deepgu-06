@@ -25,8 +25,8 @@ class Settings(BaseSettings):
 
 
     rtmp_host: str = "127.0.0.1"
-    RTMP_PORT: int = 1935
-    RTMP_APP: str = "stream"
+    rtmp_port: int = 1935
+    rtmp_app: str = "stream"
 
     instance_id: str = "media-instance-1"
     class Config:
