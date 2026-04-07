@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from app.api.camera import router as camera_router
 
 from app.core.config import settings
 from app.core.database import check_db_connection
@@ -43,3 +44,5 @@ def readiness_check():
             "database": "ok",
         },
     }
+
+app.include_router(camera_router)
