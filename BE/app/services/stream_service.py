@@ -2,7 +2,7 @@ from datetime import datetime, UTC
 
 from sqlalchemy import desc, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.clients.media_server_client import MediaServerClient
 from app.core.enums import CameraStatus, StreamSessionStatus
@@ -19,12 +19,12 @@ from app.schemas.stream import (
 
 
 class StreamService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         self.db = db
         self.media_client = MediaServerClient()
 
-    async def _get_camera_or_404(self, camera_id: str) -> Camera:
-        result = await self.db.execute(
+    def _get_camera_or_404(self, camera_id: str) -> Camera:
+        result = self.db.execute(
             select(Camera).where(Camera.camera_id == camera_id)
         )
         camera = result.scalar_one_or_none()
@@ -37,8 +37,8 @@ class StreamService:
             )
         return camera
 
-    async def _get_latest_session(self, camera_pk: int) -> StreamSession | None:
-        result = await self.db.execute(
+    def _get_latest_session(self, camera_pk: int) -> StreamSession | None:
+        result = self.db.execute(
             select(StreamSession)
             .where(StreamSession.camera_id == camera_pk)
             .order_by(desc(StreamSession.id))
@@ -47,7 +47,7 @@ class StreamService:
         return result.scalar_one_or_none()
 
     async def start_stream(self, camera_id: str) -> StreamControlResponse:
-        camera = await self._get_camera_or_404(camera_id)
+        camera = self._get_camera_or_404(camera_id)
 
         if not camera.active:
             raise AppException(
@@ -57,7 +57,7 @@ class StreamService:
             )
 
         if camera.status == CameraStatus.RUNNING.value:
-            latest_session = await self._get_latest_session(camera.id)
+            latest_session = self._get_latest_session(camera.id)
             return StreamControlResponse(
                 camera_id=camera.camera_id,
                 status=CameraStatus.RUNNING.value,
@@ -91,10 +91,10 @@ class StreamService:
             camera.updated_at = now
 
             self.db.add(session)
-            await self.db.commit()
-            await self.db.refresh(session)
+            self.db.commit()
+            self.db.refresh(session)
         except SQLAlchemyError:
-            await self.db.rollback()
+            self.db.rollback()
 
             try:
                 await self.media_client.stop_stream(
@@ -122,8 +122,8 @@ class StreamService:
         )
 
     async def stop_stream(self, camera_id: str) -> StreamControlResponse:
-        camera = await self._get_camera_or_404(camera_id)
-        latest_session = await self._get_latest_session(camera.id)
+        camera = self._get_camera_or_404(camera_id)
+        latest_session = self._get_latest_session(camera.id)
 
         if camera.status != CameraStatus.RUNNING.value:
             return StreamControlResponse(
@@ -150,9 +150,9 @@ class StreamService:
                 latest_session.stopped_at = now
                 latest_session.updated_at = now
 
-            await self.db.commit()
+            self.db.commit()
         except SQLAlchemyError:
-            await self.db.rollback()
+            self.db.rollback()
             raise AppException(
                 status_code=500,
                 code="DATABASE_ERROR",
@@ -168,8 +168,8 @@ class StreamService:
         )
 
     async def get_stream_status(self, camera_id: str) -> StreamStatusResponse:
-        camera = await self._get_camera_or_404(camera_id)
-        latest_session = await self._get_latest_session(camera.id)
+        camera = self._get_camera_or_404(camera_id)
+        latest_session = self._get_latest_session(camera.id)
 
         current_session = None
         if latest_session:
@@ -187,11 +187,16 @@ class StreamService:
             current_session=current_session,
         )
 
-    async def get_stream_sessions(self, camera_id: str, page: int, size: int) -> list[StreamSessionItem]:
-        camera = await self._get_camera_or_404(camera_id)
+    async def get_stream_sessions(
+        self,
+        camera_id: str,
+        page: int,
+        size: int,
+    ) -> list[StreamSessionItem]:
+        camera = self._get_camera_or_404(camera_id)
 
         offset = page * size
-        result = await self.db.execute(
+        result = self.db.execute(
             select(StreamSession)
             .where(StreamSession.camera_id == camera.id)
             .order_by(desc(StreamSession.id))
