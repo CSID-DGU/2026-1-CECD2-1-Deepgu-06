@@ -8,16 +8,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Deepgu Backend"
-    app_env: str = "local"
-    app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    APP_NAME: str = "Deepgu Backend"
+    APP_ENV: str = "local"
+    APP_HOST: str = "0.0.0.0"
+    APP_PORT: int = 8000
 
-    db_host: str
-    db_port: int = 3306
-    db_name: str
-    db_user: str
-    db_password: str
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
 
     media_server_base_urlmedia: str = "http://media-server:9000"
     media_server_timeout_seconds: int = 10
