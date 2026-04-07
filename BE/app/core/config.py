@@ -8,19 +8,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    APP_NAME: str = "Deepgu Backend"
-    APP_ENV: str = "local"
-    APP_HOST: str = "0.0.0.0"
-    APP_PORT: int = 8000
+    app_name: str = "Deepgu Backend"
+    app_env: str = "local"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
 
-    DB_HOST: str
-    DB_PORT: int
-    DB_NAME: str
-    DB_USER: str
-    DB_PASSWORD: str
+    db_host: str
+    db_port: int = 3306
+    db_name: str
+    db_user: str
+    db_password: str
 
-    MEDIA_SERVER_BASE_URL: str = "http://media-server:9000"
-    MEDIA_SERVER_TIMEOUT_SECONDS: int = 10
+    media_server_base_urlmedia: str = "http://media-server:9000"
+    media_server_timeout_seconds: int = 10
 
     @property
     def database_url(self) -> str:
