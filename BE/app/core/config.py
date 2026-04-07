@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
+    MEDIA_SERVER_BASE_URL: str = "http://media-server:9000"
+    MEDIA_SERVER_TIMEOUT_SECONDS: int = 10
+
     @property
     def database_url(self) -> str:
         return (
@@ -26,14 +29,5 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
         )
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    app_name: str = "Backend Server"
-
-    database_url: str
-
-    media_server_base_url: str = "http://media-server:9000"
-    media_server_timeout_seconds: int = 10
 
 settings = Settings()
