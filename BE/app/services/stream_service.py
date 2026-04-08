@@ -56,15 +56,18 @@ class StreamService:
                 message="비활성 카메라는 스트리밍할 수 없습니다.",
             )
 
-        if camera.status == CameraStatus.RUNNING.value:
+        if camera.status in (
+            CameraStatus.STARTING.value,
+            CameraStatus.RUNNING.value,
+        ):
             latest_session = self._get_latest_session(camera.id)
             return StreamControlResponse(
                 camera_id=camera.camera_id,
-                status=CameraStatus.RUNNING.value,
+                status=camera.status,
                 hls_url=latest_session.hls_url if latest_session else None,
                 started_at=latest_session.started_at if latest_session else None,
                 session_id=latest_session.id if latest_session else None,
-                message="Stream is already running",
+                message="Stream is already starting or running",
             )
 
         media_data = await self.media_client.start_stream(
@@ -74,11 +77,31 @@ class StreamService:
             )
         )
 
+        media_status = media_data.get("status")
+        if media_status not in ("starting", "ready"):
+            raise AppException(
+                status_code=502,
+                code="MEDIA_SERVER_START_FAILED",
+                message=f"unexpected media status: {media_data}",
+            )
+
         now = datetime.now(UTC).replace(tzinfo=None)
+
+        session_status = (
+            StreamSessionStatus.RUNNING.value
+            if media_status == "ready"
+            else StreamSessionStatus.STARTING.value
+        )
+
+        camera_status = (
+            CameraStatus.RUNNING.value
+            if media_status == "ready"
+            else CameraStatus.STARTING.value
+        )
 
         session = StreamSession(
             camera_id=camera.id,
-            status=StreamSessionStatus.RUNNING.value,
+            status=session_status,
             hls_url=media_data.get("hls_url"),
             started_at=now,
             stopped_at=None,
@@ -87,7 +110,7 @@ class StreamService:
         )
 
         try:
-            camera.status = CameraStatus.RUNNING.value
+            camera.status = camera_status
             camera.updated_at = now
 
             self.db.add(session)
@@ -115,10 +138,11 @@ class StreamService:
 
         return StreamControlResponse(
             camera_id=camera.camera_id,
-            status=CameraStatus.RUNNING.value,
+            status=camera.status,
             hls_url=session.hls_url,
             started_at=session.started_at,
             session_id=session.id,
+            message="Stream is starting" if camera.status == CameraStatus.STARTING.value else "Stream is running",
         )
 
     async def stop_stream(self, camera_id: str) -> StreamControlResponse:
