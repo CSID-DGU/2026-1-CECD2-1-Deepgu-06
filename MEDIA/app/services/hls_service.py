@@ -111,12 +111,18 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
 
     existing_process = cleanup_stale_process(camera_id)
     if existing_process:
+        playlist_path = get_playlist_path(camera_id)
+        ready = is_playlist_ready(playlist_path)
+
         return {
             "camera_id": camera_id,
             "message": "stream already running",
+            "status": "ready" if ready else "starting",
             "running": True,
             "pid": existing_process.pid,
-            "playlist_path": get_playlist_path(camera_id),
+            "playlist_path": playlist_path,
+            "playlist_exists": Path(playlist_path).exists(),
+            "playlist_ready": ready,
             "hls_url": f"/hls/{camera_id}/index.m3u8",
             "instance_id": settings.instance_id,
         }
@@ -126,103 +132,78 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
     log_path = get_log_path(camera_id)
     segment_pattern = os.path.join(output_dir, settings.segment_filename)
 
-    last_error_message = ""
+    try:
+        safe_remove_dir(output_dir)
+        ensure_dir(output_dir)
+    except Exception as e:
+        raise RuntimeError(f"failed to prepare output directory: {e}") from e
 
-    for attempt in range(1, MAX_START_RETRIES + 1):
-        try:
-            safe_remove_dir(output_dir)
-            ensure_dir(output_dir)
-        except Exception as e:
-            raise RuntimeError(f"failed to prepare output directory: {e}") from e
+    command = build_ffmpeg_command(input_url, segment_pattern, playlist_path)
 
-        command = build_ffmpeg_command(input_url, segment_pattern, playlist_path)
+    try:
+        log_file = open(log_path, "ab")
+    except Exception as e:
+        raise RuntimeError(f"failed to open ffmpeg log file: {e}") from e
 
-        try:
-            log_file = open(log_path, "ab")
-        except Exception as e:
-            raise RuntimeError(f"failed to open ffmpeg log file: {e}") from e
+    try:
+        time.sleep(STREAM_WARMUP_SECONDS)
 
-        try:
-            # 핵심 1: 스트림 warm-up 대기
-            time.sleep(STREAM_WARMUP_SECONDS)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log_file,
+        )
+    except FileNotFoundError as e:
+        log_file.close()
+        raise RuntimeError(f"ffmpeg binary not found: {settings.ffmpeg_binary}") from e
+    except Exception as e:
+        log_file.close()
+        raise RuntimeError(f"failed to start ffmpeg process: {e}") from e
 
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=log_file,
-            )
-        except FileNotFoundError as e:
-            log_file.close()
-            raise RuntimeError(f"ffmpeg binary not found: {settings.ffmpeg_binary}") from e
-        except Exception as e:
-            log_file.close()
-            raise RuntimeError(f"failed to start ffmpeg process: {e}") from e
+    process._ffmpeg_log_file = log_file  # type: ignore[attr-defined]
+    process_registry.add(camera_id, process)
 
-        process._ffmpeg_log_file = log_file  # type: ignore[attr-defined]
-        process_registry.add(camera_id, process)
+    # 아주 짧게만 확인: 시작 직후 바로 죽는지만 본다
+    short_check_seconds = 3
+    short_check_interval = 0.5
+    start_time = time.time()
 
-        start_time = time.time()
-        started = False
+    while time.time() - start_time < short_check_seconds:
+        if process.poll() is not None:
+            process_registry.remove(camera_id)
 
-        while time.time() - start_time < STARTUP_TIMEOUT_SECONDS:
-            if process.poll() is not None:
-                process_registry.remove(camera_id)
+            try:
+                log_file.close()
+            except Exception:
+                pass
 
-                try:
-                    log_file.close()
-                except Exception:
-                    pass
-
-                try:
-                    with open(log_path, "rb") as f:
-                        last_error_message = f.read().decode(errors="ignore")[-2000:]
-                except Exception:
-                    last_error_message = "unable to read ffmpeg log"
-
-                break
-
-            if is_playlist_ready(playlist_path):
-                started = True
-                return {
-                    "camera_id": camera_id,
-                    "message": "stream started",
-                    "running": True,
-                    "pid": process.pid,
-                    "output_dir": output_dir,
-                    "playlist_path": playlist_path,
-                    "log_path": log_path,
-                    "hls_url": f"/hls/{camera_id}/index.m3u8",
-                    "instance_id": settings.instance_id,
-                    "attempt": attempt,
-                }
-
-            time.sleep(STARTUP_POLL_INTERVAL_SECONDS)
-
-        if started:
-            break
-
-        # timeout 또는 조기 종료 시 정리
-        safe_terminate_process(process)
-        process_registry.remove(camera_id)
-
-        try:
-            log_file.close()
-        except Exception:
-            pass
-
-        if not last_error_message:
+            error_message = ""
             try:
                 with open(log_path, "rb") as f:
-                    last_error_message = f.read().decode(errors="ignore")[-2000:]
+                    error_message = f.read().decode(errors="ignore")[-2000:]
             except Exception:
-                last_error_message = "unable to read ffmpeg log"
+                error_message = "unable to read ffmpeg log"
 
-        if attempt < MAX_START_RETRIES:
-            time.sleep(RETRY_DELAY_SECONDS)
+            raise RuntimeError(f"ffmpeg exited during startup: {error_message}")
 
-    raise RuntimeError(
-        f"ffmpeg failed after {MAX_START_RETRIES} attempts: {last_error_message}"
-    )
+        time.sleep(short_check_interval)
+
+    ready = is_playlist_ready(playlist_path)
+
+    return {
+        "camera_id": camera_id,
+        "message": "stream starting",
+        "status": "ready" if ready else "starting",
+        "running": True,
+        "pid": process.pid,
+        "output_dir": output_dir,
+        "playlist_path": playlist_path,
+        "log_path": log_path,
+        "playlist_exists": Path(playlist_path).exists(),
+        "playlist_ready": ready,
+        "hls_url": f"/hls/{camera_id}/index.m3u8",
+        "instance_id": settings.instance_id,
+    }
 
 
 def stop_hls_stream(camera_id: str, cleanup_files: bool = False) -> dict:
