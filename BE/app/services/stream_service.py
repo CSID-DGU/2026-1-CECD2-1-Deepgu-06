@@ -46,6 +46,42 @@ class StreamService:
         )
         return result.scalar_one_or_none()
 
+    def _validate_media_status(self, media_status: str) -> str:
+        normalized = str(media_status or "").upper()
+        allowed = {
+            "STARTING",
+            "RUNNING",
+            "STOPPED",
+            "FAILED",
+        }
+        if normalized not in allowed:
+            raise AppException(
+                status_code=502,
+                code="MEDIA_SERVER_INVALID_STATUS",
+                message=f"unexpected media status: {media_status}",
+            )
+        return normalized
+
+    def _map_media_status_to_camera_status(self, media_status: str) -> str:
+        if media_status == "RUNNING":
+            return CameraStatus.RUNNING.value
+        if media_status == "STARTING":
+            return CameraStatus.STARTING.value
+        if media_status == "STOPPED":
+            return CameraStatus.STOPPED.value
+        if media_status == "FAILED":
+            return CameraStatus.STOPPED.value
+        return CameraStatus.STOPPED.value
+
+    def _map_media_status_to_session_status(self, media_status: str) -> str:
+        if media_status == "RUNNING":
+            return StreamSessionStatus.RUNNING.value
+        if media_status == "STARTING":
+            return StreamSessionStatus.STARTING.value
+        if media_status == "FAILED":
+            return StreamSessionStatus.FAILED.value
+        return StreamSessionStatus.STOPPED.value
+
     async def start_stream(self, camera_id: str) -> StreamControlResponse:
         camera = self._get_camera_or_404(camera_id)
 
@@ -70,39 +106,31 @@ class StreamService:
                 message="Stream is already starting or running",
             )
 
-        media_data = await self.media_client.start_stream(
+        media_response = await self.media_client.start_stream(
             MediaStartRequest(
                 camera_id=camera.camera_id,
                 stream_key=camera.stream_key,
             )
         )
 
-        media_status = media_data.get("status")
-        if media_status not in ("starting", "ready"):
+        media_status = self._validate_media_status(media_response.data.status)
+
+        if media_status not in (
+            CameraStatus.STARTING.value,
+            CameraStatus.RUNNING.value,
+        ):
             raise AppException(
                 status_code=502,
                 code="MEDIA_SERVER_START_FAILED",
-                message=f"unexpected media status: {media_data}",
+                message=f"unexpected media status for start: {media_response.model_dump()}",
             )
 
         now = datetime.now(UTC).replace(tzinfo=None)
 
-        session_status = (
-            StreamSessionStatus.RUNNING.value
-            if media_status == "ready"
-            else StreamSessionStatus.STARTING.value
-        )
-
-        camera_status = (
-            CameraStatus.RUNNING.value
-            if media_status == "ready"
-            else CameraStatus.STARTING.value
-        )
-
         session = StreamSession(
             camera_id=camera.id,
-            status=session_status,
-            hls_url=media_data.get("hls_url"),
+            status=self._map_media_status_to_session_status(media_status),
+            hls_url=media_response.data.hls_url,
             started_at=now,
             stopped_at=None,
             created_at=now,
@@ -110,7 +138,7 @@ class StreamService:
         )
 
         try:
-            camera.status = camera_status
+            camera.status = self._map_media_status_to_camera_status(media_status)
             camera.updated_at = now
 
             self.db.add(session)
@@ -142,14 +170,21 @@ class StreamService:
             hls_url=session.hls_url,
             started_at=session.started_at,
             session_id=session.id,
-            message="Stream is starting" if camera.status == CameraStatus.STARTING.value else "Stream is running",
+            message="Stream is starting"
+            if camera.status == CameraStatus.STARTING.value
+            else "Stream is running",
         )
 
     async def stop_stream(self, camera_id: str) -> StreamControlResponse:
         camera = self._get_camera_or_404(camera_id)
         latest_session = self._get_latest_session(camera.id)
 
-        if camera.status != CameraStatus.RUNNING.value:
+        stoppable_statuses = {
+            CameraStatus.STARTING.value,
+            CameraStatus.RUNNING.value,
+        }
+
+        if camera.status not in stoppable_statuses:
             return StreamControlResponse(
                 camera_id=camera.camera_id,
                 status=CameraStatus.STOPPED.value,
@@ -169,9 +204,14 @@ class StreamService:
             camera.status = CameraStatus.STOPPED.value
             camera.updated_at = now
 
-            if latest_session and latest_session.status == StreamSessionStatus.RUNNING.value:
+            if latest_session and latest_session.status in (
+                StreamSessionStatus.STARTING.value,
+                StreamSessionStatus.RUNNING.value,
+                StreamSessionStatus.FAILED.value,
+            ):
                 latest_session.status = StreamSessionStatus.STOPPED.value
-                latest_session.stopped_at = now
+                if latest_session.stopped_at is None:
+                    latest_session.stopped_at = now
                 latest_session.updated_at = now
 
             self.db.commit()
@@ -189,11 +229,55 @@ class StreamService:
             stopped_at=now,
             session_id=latest_session.id if latest_session else None,
             hls_url=latest_session.hls_url if latest_session else None,
+            message="Stream is stopped",
         )
 
     async def get_stream_status(self, camera_id: str) -> StreamStatusResponse:
         camera = self._get_camera_or_404(camera_id)
         latest_session = self._get_latest_session(camera.id)
+
+        media_response = await self.media_client.get_stream_status(camera.camera_id)
+        media_status = self._validate_media_status(media_response.data.status)
+
+        mapped_camera_status = self._map_media_status_to_camera_status(media_status)
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        db_changed = False
+
+        if camera.status != mapped_camera_status:
+            camera.status = mapped_camera_status
+            camera.updated_at = now
+            db_changed = True
+
+        if latest_session:
+            desired_session_status = self._map_media_status_to_session_status(media_status)
+
+            if latest_session.status != desired_session_status:
+                latest_session.status = desired_session_status
+                latest_session.updated_at = now
+                db_changed = True
+
+            if desired_session_status in (
+                StreamSessionStatus.STOPPED.value,
+                StreamSessionStatus.FAILED.value,
+            ):
+                if latest_session.stopped_at is None:
+                    latest_session.stopped_at = now
+                    db_changed = True
+
+        if db_changed:
+            try:
+                self.db.commit()
+                self.db.refresh(camera)
+                if latest_session:
+                    self.db.refresh(latest_session)
+            except SQLAlchemyError:
+                self.db.rollback()
+                raise AppException(
+                    status_code=500,
+                    code="DATABASE_ERROR",
+                    message="스트림 상태 동기화 중 DB 갱신에 실패했습니다.",
+                )
 
         current_session = None
         if latest_session:

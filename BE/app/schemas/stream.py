@@ -51,6 +51,27 @@ class MediaStopData(BaseModel):
     status: str
 
 
-class MediaResponse(BaseModel):
+class MediaStatusData(BaseModel):
+    status: str
+    hls_url: str
+    running: bool
+    pid: int | None = None
+    playlist_exists: bool
+    playlist_ready: bool
+    playlist_path: str
+    instance_id: str | None = None
+
+
+class MediaStartResponse(BaseModel):
     success: bool
-    data: dict
+    data: MediaStartData
+
+
+class MediaStopResponse(BaseModel):
+    success: bool
+    data: MediaStopData
+
+
+class MediaStatusResponse(BaseModel):
+    success: bool
+    data: MediaStatusData
