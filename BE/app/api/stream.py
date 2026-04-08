@@ -5,8 +5,8 @@ from app.core.database import get_db
 from app.schemas.common import ApiResponse
 from app.schemas.stream import (
     StreamControlResponse,
-    StreamStartRequest,
     StreamSessionItem,
+    StreamStartRequest,
     StreamStatusResponse,
 )
 from app.services.stream_service import StreamService
@@ -21,11 +21,13 @@ router = APIRouter(prefix="/api/cameras", tags=["streams"])
 )
 async def start_stream(
     camera_id: str,
-    _: StreamStartRequest,
+    request: StreamStartRequest,
     db: Session = Depends(get_db),
 ):
     service = StreamService(db)
+
     data = await service.start_stream(camera_id)
+
     return ApiResponse(success=True, data=data)
 
 
@@ -40,6 +42,7 @@ async def stop_stream(
 ):
     service = StreamService(db)
     data = await service.stop_stream(camera_id)
+
     return ApiResponse(success=True, data=data)
 
 
@@ -54,6 +57,7 @@ async def get_stream_status(
 ):
     service = StreamService(db)
     data = await service.get_stream_status(camera_id)
+
     return ApiResponse(success=True, data=data)
 
 
@@ -70,4 +74,5 @@ async def get_stream_sessions(
 ):
     service = StreamService(db)
     data = await service.get_stream_sessions(camera_id, page, size)
+
     return ApiResponse(success=True, data=data)
