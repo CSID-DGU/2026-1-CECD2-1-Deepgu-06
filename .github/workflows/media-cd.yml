@@ -150,7 +150,7 @@ jobs:
               -e APP_HOST=0.0.0.0 \
               -e APP_PORT=9000 \
               -e RTMP_HOST='${{ secrets.RTMP_HOST }}' \
-              -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}'
+              -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
               -e FFMPEG_BINARY=ffmpeg \
               -e INSTANCE_ID=media-ec2-1 \
               $IMAGE_URI:$IMAGE_TAG
