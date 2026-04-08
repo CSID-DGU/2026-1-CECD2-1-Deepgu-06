@@ -117,7 +117,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -euxo pipefail
-
+            echo "=== DEBUG: MEDIA_SERVER_BASE_URL from GitHub Secret ==="
+            echo "${{ secrets.MEDIA_SERVER_BASE_URL }}"
             IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
             IMAGE_TAG=dev-${{ github.sha }}
             CONTAINER_NAME=${{ env.CONTAINER_NAME }}
