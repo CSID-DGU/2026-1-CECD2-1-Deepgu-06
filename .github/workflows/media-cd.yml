@@ -158,11 +158,35 @@ jobs:
 
             sleep 5
 
-            if ! sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
-              echo "container exited early"
+            echo "=== check MEDIA_SERVER_BASE_URL exists in container ==="
+            if ! sudo docker exec $CONTAINER_NAME sh -c 'test -n "$MEDIA_SERVER_BASE_URL"'; then
+              echo "MEDIA_SERVER_BASE_URL is empty inside container"
               sudo docker logs $CONTAINER_NAME || true
               exit 1
             fi
+            
+            echo "=== health check via MEDIA_SERVER_BASE_URL inside container ==="
+            for i in {1..20}; do
+              if ! sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+                echo "container exited early"
+                sudo docker logs $CONTAINER_NAME || true
+                exit 1
+              fi
+            
+              if sudo docker exec $CONTAINER_NAME sh -c 'curl -fsS "$MEDIA_SERVER_BASE_URL/health" >/dev/null'; then
+                echo "MEDIA_SERVER_BASE_URL health check passed"
+                break
+              fi
+            
+              sleep 3
+            
+              if [ "$i" -eq 20 ]; then
+                echo "MEDIA_SERVER_BASE_URL health check failed"
+                sudo docker exec $CONTAINER_NAME sh -c 'echo "$MEDIA_SERVER_BASE_URL"' || true
+                sudo docker logs $CONTAINER_NAME || true
+                exit 1
+              fi
+            done
 
       - name: Health check on EC2
         uses: appleboy/ssh-action@v1.2.2
