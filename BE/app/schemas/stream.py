@@ -33,9 +33,16 @@ class StreamStatusResponse(BaseModel):
     current_session: StreamSessionItem | None
 
 
+class StreamCallbackRequest(BaseModel):
+    camera_id: str
+    status: str
+    hls_url: str | None = None
+
+
 class MediaStartRequest(BaseModel):
     camera_id: str
     stream_key: str
+    callback_url: str = ""
 
 
 class MediaStopRequest(BaseModel):

@@ -6,13 +6,16 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import requests
+
 from app.core.config import settings
-from app.registry.process_registry import process_registry
+from app.registry.process_registry import ProcessEntry, process_registry
 from app.utils.file_utils import ensure_dir
 
 
 SHORT_CHECK_SECONDS = 3
 SHORT_CHECK_INTERVAL_SECONDS = 0.5
+MONITOR_INTERVAL_SECONDS = 2
 CAMERA_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -120,10 +123,53 @@ def resolve_stream_status(process: Optional[subprocess.Popen], playlist_path: st
     return "STARTING"
 
 
-def start_hls_stream(camera_id: str, input_url: str) -> dict:
+def send_callback(callback_url: str, camera_id: str, status: str, hls_url: str) -> None:
+    """미디어 서버 → BE 상태 변경 콜백. best-effort로 전송한다."""
+    if not callback_url:
+        return
+    try:
+        headers = {}
+        if settings.callback_secret:
+            headers["X-Callback-Secret"] = settings.callback_secret
+        requests.post(
+            callback_url,
+            json={"camera_id": camera_id, "status": status, "hls_url": hls_url},
+            headers=headers,
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def monitor_processes() -> None:
+    """
+    백그라운드 스레드: 등록된 ffmpeg 프로세스를 주기적으로 감시하고
+    상태가 변하면 BE로 콜백을 전송한다.
+    """
+    while True:
+        time.sleep(MONITOR_INTERVAL_SECONDS)
+        for camera_id, entry in process_registry.snapshot():
+            playlist_path = get_playlist_path(camera_id)
+            try:
+                status = resolve_stream_status(entry.process, playlist_path)
+            except Exception:
+                continue
+
+            if status == entry.last_status:
+                continue
+
+            process_registry.set_last_status(camera_id, status)
+            send_callback(entry.callback_url, camera_id, status, entry.hls_url)
+
+            if status == "FAILED":
+                process_registry.remove(camera_id)
+
+
+def start_hls_stream(camera_id: str, input_url: str, callback_url: str = "") -> dict:
     validate_camera_id(camera_id)
     validate_input_url(input_url)
 
+    hls_url = f"/hls/{camera_id}/index.m3u8"
     playlist_path = get_playlist_path(camera_id)
     existing_process = cleanup_stale_process(camera_id)
 
@@ -138,7 +184,7 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
             "playlist_path": playlist_path,
             "playlist_exists": Path(playlist_path).exists(),
             "playlist_ready": is_playlist_ready(playlist_path),
-            "hls_url": f"/hls/{camera_id}/index.m3u8",
+            "hls_url": hls_url,
             "instance_id": settings.instance_id,
         }
 
@@ -173,7 +219,7 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
         raise RuntimeError(f"failed to start ffmpeg process: {e}") from e
 
     process._ffmpeg_log_file = log_file  # type: ignore[attr-defined]
-    process_registry.add(camera_id, process)
+    process_registry.add(camera_id, process, callback_url=callback_url, hls_url=hls_url)
 
     start_time = time.time()
 
@@ -210,7 +256,7 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
         "log_path": log_path,
         "playlist_exists": Path(playlist_path).exists(),
         "playlist_ready": is_playlist_ready(playlist_path),
-        "hls_url": f"/hls/{camera_id}/index.m3u8",
+        "hls_url": hls_url,
         "instance_id": settings.instance_id,
     }
 
@@ -218,7 +264,10 @@ def start_hls_stream(camera_id: str, input_url: str) -> dict:
 def stop_hls_stream(camera_id: str, cleanup_files: bool = False) -> dict:
     validate_camera_id(camera_id)
 
-    process = process_registry.get(camera_id)
+    entry = process_registry.get_entry(camera_id)
+    process = entry.process if entry else None
+    callback_url = entry.callback_url if entry else ""
+    hls_url = entry.hls_url if entry else f"/hls/{camera_id}/index.m3u8"
     output_dir = get_camera_output_dir(camera_id)
 
     if not process:
@@ -252,6 +301,8 @@ def stop_hls_stream(camera_id: str, cleanup_files: bool = False) -> dict:
     if cleanup_files and os.path.exists(output_dir):
         safe_remove_dir(output_dir)
         files_cleaned = True
+
+    send_callback(callback_url, camera_id, "STOPPED", hls_url)
 
     return {
         "camera_id": camera_id,

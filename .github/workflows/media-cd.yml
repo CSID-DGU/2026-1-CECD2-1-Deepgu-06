@@ -152,6 +152,7 @@ jobs:
               -e RTMP_HOST='${{ secrets.RTMP_HOST }}' \
               -e FFMPEG_BINARY=ffmpeg \
               -e INSTANCE_ID=media-ec2-1 \
+              -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5

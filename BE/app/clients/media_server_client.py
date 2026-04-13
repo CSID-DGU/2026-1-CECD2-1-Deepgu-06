@@ -20,6 +20,7 @@ class MediaServerClient:
         url = f"{self.base_url}/streams/{payload.camera_id}/start"
         body = {
             "stream_key": payload.stream_key,
+            "callback_url": payload.callback_url,
         }
 
         try:
