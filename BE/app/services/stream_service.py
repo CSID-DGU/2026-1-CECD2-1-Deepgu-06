@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.clients.media_server_client import MediaServerClient
+from app.core.config import settings
 from app.core.enums import CameraStatus, StreamSessionStatus
 from app.core.exceptions import AppException
 from app.models.camera import Camera
@@ -12,6 +13,7 @@ from app.models.stream_session import StreamSession
 from app.schemas.stream import (
     MediaStartRequest,
     MediaStopRequest,
+    StreamCallbackRequest,
     StreamControlResponse,
     StreamSessionItem,
     StreamStatusResponse,
@@ -106,10 +108,17 @@ class StreamService:
                 message="Stream is already starting or running",
             )
 
+        callback_url = (
+            f"{settings.app_base_url}/internal/streams/callback"
+            if settings.app_base_url
+            else ""
+        )
+
         media_response = await self.media_client.start_stream(
             MediaStartRequest(
                 camera_id=camera.camera_id,
                 stream_key=camera.stream_key,
+                callback_url=callback_url,
             )
         )
 
@@ -236,49 +245,6 @@ class StreamService:
         camera = self._get_camera_or_404(camera_id)
         latest_session = self._get_latest_session(camera.id)
 
-        media_response = await self.media_client.get_stream_status(camera.camera_id)
-        media_status = self._validate_media_status(media_response.data.status)
-
-        mapped_camera_status = self._map_media_status_to_camera_status(media_status)
-
-        now = datetime.now(UTC).replace(tzinfo=None)
-        db_changed = False
-
-        if camera.status != mapped_camera_status:
-            camera.status = mapped_camera_status
-            camera.updated_at = now
-            db_changed = True
-
-        if latest_session:
-            desired_session_status = self._map_media_status_to_session_status(media_status)
-
-            if latest_session.status != desired_session_status:
-                latest_session.status = desired_session_status
-                latest_session.updated_at = now
-                db_changed = True
-
-            if desired_session_status in (
-                StreamSessionStatus.STOPPED.value,
-                StreamSessionStatus.FAILED.value,
-            ):
-                if latest_session.stopped_at is None:
-                    latest_session.stopped_at = now
-                    db_changed = True
-
-        if db_changed:
-            try:
-                self.db.commit()
-                self.db.refresh(camera)
-                if latest_session:
-                    self.db.refresh(latest_session)
-            except SQLAlchemyError:
-                self.db.rollback()
-                raise AppException(
-                    status_code=500,
-                    code="DATABASE_ERROR",
-                    message="스트림 상태 동기화 중 DB 갱신에 실패했습니다.",
-                )
-
         current_session = None
         if latest_session:
             current_session = StreamSessionItem(
@@ -294,6 +260,34 @@ class StreamService:
             camera_status=camera.status,
             current_session=current_session,
         )
+
+    def handle_callback(self, payload: StreamCallbackRequest) -> None:
+        camera = self._get_camera_or_404(payload.camera_id)
+        latest_session = self._get_latest_session(camera.id)
+        now = datetime.now(UTC).replace(tzinfo=None)
+
+        media_status = self._validate_media_status(payload.status)
+        new_camera_status = self._map_media_status_to_camera_status(media_status)
+        new_session_status = self._map_media_status_to_session_status(media_status)
+
+        camera.status = new_camera_status
+        camera.updated_at = now
+
+        if latest_session:
+            latest_session.status = new_session_status
+            latest_session.updated_at = now
+            if media_status in ("STOPPED", "FAILED") and latest_session.stopped_at is None:
+                latest_session.stopped_at = now
+
+        try:
+            self.db.commit()
+        except SQLAlchemyError:
+            self.db.rollback()
+            raise AppException(
+                status_code=500,
+                code="DATABASE_ERROR",
+                message="콜백 처리 중 DB 갱신에 실패했습니다.",
+            )
 
     async def get_stream_sessions(
         self,

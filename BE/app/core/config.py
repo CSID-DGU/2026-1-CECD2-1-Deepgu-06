@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     media_server_base_url: str = "http://media-server:9000"
     media_server_timeout_seconds: int = 10
 
+    app_base_url: str = "http://localhost:8000"
+    callback_secret: str = ""
+
     @property
     def database_url(self) -> str:
         return (

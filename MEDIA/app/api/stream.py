@@ -15,6 +15,7 @@ router = APIRouter(prefix="/streams", tags=["streams"])
 
 class StartStreamRequest(BaseModel):
     stream_key: str = Field(..., description="RTMP stream key")
+    callback_url: str = Field(default="", description="BE callback URL for status changes")
 
 
 @router.post("/{camera_id}/start", response_model=ApiResponse[dict])
@@ -30,6 +31,7 @@ def start_stream(camera_id: str, request: StartStreamRequest):
         data = start_hls_stream(
             camera_id=camera_id,
             input_url=input_url,
+            callback_url=request.callback_url,
         )
 
         return ApiResponse(success=True, data=data)
