@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     rtmp_app: str = "stream"
 
     instance_id: str = "media-instance-1"
+    callback_secret: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

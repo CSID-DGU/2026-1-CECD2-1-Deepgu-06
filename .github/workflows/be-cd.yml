@@ -155,6 +155,9 @@ jobs:
               -e DB_USER='${{ secrets.DB_USER }}' \
               -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
               -e DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+              -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
+              -e APP_BASE_URL='${{ secrets.BE_BASE_URL }}' \
+              -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5
