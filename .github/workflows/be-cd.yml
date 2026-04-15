@@ -153,11 +153,11 @@ jobs:
               -e DB_PORT='${{ secrets.DB_PORT }}' \
               -e DB_NAME='${{ secrets.DB_NAME }}' \
               -e DB_USER='${{ secrets.DB_USER }}' \
-              -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
               -e DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
               -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
               -e APP_BASE_URL='${{ secrets.BE_BASE_URL }}' \
               -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
+              -e JWT_SECRET_KEY='${{ secrets.JWT_SECRET_KEY }}' \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5
