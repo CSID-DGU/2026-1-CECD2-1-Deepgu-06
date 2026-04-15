@@ -26,3 +26,9 @@ class Camera(Base):
         back_populates="camera",
         cascade="all, delete-orphan",
     )
+
+    assignments = relationship(
+        "CameraAssignment",
+        back_populates="camera",
+        cascade="all, delete-orphan",
+    )

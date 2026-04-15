@@ -54,6 +54,12 @@ class CameraService:
         return db.query(Camera).order_by(Camera.id.desc()).all()
 
     @staticmethod
+    def get_camera_list_by_ids(db: Session, camera_ids: list[int]) -> list[Camera]:
+        if not camera_ids:
+            return []
+        return db.query(Camera).filter(Camera.id.in_(camera_ids)).order_by(Camera.id.desc()).all()
+
+    @staticmethod
     def update_camera(db: Session, camera: Camera, payload: CameraUpdateRequest) -> Camera:
         update_fields = payload.model_dump(exclude_unset=True)
 
