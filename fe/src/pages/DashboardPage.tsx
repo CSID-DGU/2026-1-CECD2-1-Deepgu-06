@@ -74,8 +74,8 @@ const DashboardPage = () => {
     }
   };
 
-  const camStatus = streamStatus?.cameraStatus || selected?.status || "STOPPED";
-  const hlsUrl = streamStatus?.currentSession?.hlsUrl || null;
+  const camStatus = streamStatus?.camera_status || selected?.status || "STOPPED";
+  const hlsUrl = streamStatus?.current_session?.hls_url || null;
   const isRunning = camStatus === "RUNNING" || camStatus === "STARTING";
   const st = statusLabel[camStatus] || statusLabel["STOPPED"];
 
