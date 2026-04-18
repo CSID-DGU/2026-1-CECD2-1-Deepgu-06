@@ -17,14 +17,14 @@ export interface CameraDetail extends Camera {
 }
 
 export interface StreamStatus {
-  cameraId: string;
-  cameraStatus: string;
-  currentSession: {
-    sessionId: number;
+  camera_id: string;
+  camera_status: string;
+  current_session: {
+    session_id: number;
     status: string;
-    hlsUrl: string;
-    startedAt: string;
-    stoppedAt: string | null;
+    hls_url: string;
+    started_at: string;
+    stopped_at: string | null;
   } | null;
 }
 
