@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.models  # noqa: F401 — 모든 모델을 SQLAlchemy에 등록
@@ -13,6 +14,14 @@ from app.core.database import check_db_connection
 from app.core.exceptions import add_exception_handlers
 
 app = FastAPI(title=settings.APP_NAME)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
