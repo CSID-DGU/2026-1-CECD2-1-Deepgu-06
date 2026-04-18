@@ -5,7 +5,7 @@ import type { Camera, StreamStatus } from "../api/camera";
 import VideoPlayer from "../components/VideoPlayer";
 import styles from "./DashboardPage.module.css";
 
-const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "http://localhost:9000";
+const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "";
 
 const statusLabel: Record<string, { label: string; color: string }> = {
   RUNNING:  { label: "스트리밍 중", color: "#10b981" },
