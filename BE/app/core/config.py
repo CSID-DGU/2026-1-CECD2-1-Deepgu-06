@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24
 
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] = ["https://2026-1-cecd-2-1-deepgu-06.vercel.app", "http://localhost:5173"]
 
     @property
     def database_url(self) -> str:
