@@ -1,14 +1,23 @@
 import torch
 from PIL import Image
-import numpy as np
 from transformers import AutoModel, AutoTokenizer
 from torchvision import transforms
+from models.vlm.parser import parse_vlm_output, normalize_vlm_output
+from models.vlm.prompts import load_prompt
+from utils.device import choose_torch_device
 
 
+
+# VLM 클래스
 class InternVL:
-    def __init__(self, model_name="OpenGVLab/InternVL2-8B"):
+    def __init__(self, model_name="OpenGVLab/InternVL2-8B", device=None, preferred_gpu_indices=None, prompt_path=None):
 
         print(" InternVL 모델 로딩 중...")
+
+        self.device = device or choose_torch_device(
+            preferred_gpu_indices=preferred_gpu_indices,
+            allow_cpu_fallback=True
+        )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
@@ -19,10 +28,13 @@ class InternVL:
             model_name,
             torch_dtype=torch.bfloat16,
             trust_remote_code=True,
-            device_map={"": "cuda:1"}
+            device_map={"": self.device}
         ).eval()
 
+        self.prompt = load_prompt(prompt_path)
+
         print(" 모델 로딩 완료")
+
 
     def preprocess_frames(self, frames):
         
@@ -38,48 +50,30 @@ class InternVL:
         images = []
 
         for frame in frames:
-            img = Image.fromarray(frame)  # numpy → PIL
-            img = transform(img)          # PIL → Tensor
+            img = Image.fromarray(frame)
+            img = transform(img)
             images.append(img)
 
         return images
 
-    def build_prompt(self):
-        return (
-            "You are an expert in video anomaly detection.\n"
-            "Analyze the following frames and answer:\n"
-            "1. Is there any abnormal behavior?\n"
-            "2. If yes, describe it briefly.\n"
-            "Answer in JSON format:\n"
-            '{"label": "anomaly or normal", "description": "..."}'
-        )
 
     def predict(self, frames):
 
         images = self.preprocess_frames(frames)
-        images = torch.stack(images).to("cuda:1").to(torch.bfloat16)
-
-        """
-        vlm 들어가기 직전 이미지 텐서 상태 확인
-        
-        print(type(images[0]))
-        print(images.shape, images.dtype, images.device)
-        """
-
-        prompt = self.build_prompt()
-
-        generation_config = dict(
-            max_new_tokens=100,
-            do_sample=False,
-            temperature=0.0
-        )
+        images = torch.stack(images).to(self.device).to(torch.bfloat16)
 
         response = self.model.chat(
             tokenizer=self.tokenizer,
             pixel_values=images,
-            question=prompt,
-            generation_config=generation_config
+            question=self.prompt,
+            generation_config={
+                "max_new_tokens": 100,
+                "do_sample": False,
+                "temperature": 0.0
+            }
         )
 
-        return response
-    
+        parsed = parse_vlm_output(response)
+        parsed = normalize_vlm_output(parsed)
+
+        return parsed
