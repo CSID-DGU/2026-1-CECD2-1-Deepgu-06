@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     app_base_url: str = "http://localhost:8000"
     callback_secret: str = ""
 
+    jwt_secret_key: str = "dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24
+
+    cors_origins: list[str] = ["https://2026-1-cecd-2-1-deepgu-06.vercel.app", "http://localhost:5173"]
+
     @property
     def database_url(self) -> str:
         return (
