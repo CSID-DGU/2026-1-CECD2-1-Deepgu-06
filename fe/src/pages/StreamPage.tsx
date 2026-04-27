@@ -1,12 +1,17 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getCameras, startStream, stopStream, getStreamStatus } from "../api/camera";
 import type { Camera, StreamStatus } from "../api/camera";
 import VideoPlayer from "../components/VideoPlayer";
+import type { VideoPlayerHandle } from "../components/VideoPlayer";
+import BboxOverlay from "../components/BboxOverlay";
 import Layout from "../components/Layout";
 
 const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "";
 
 const StreamPage = () => {
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
+  const getLatency = () => videoPlayerRef.current?.getLatency() ?? 5;
+
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selected, setSelected] = useState<Camera | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus | null>(null);
@@ -142,7 +147,12 @@ const StreamPage = () => {
                   </div>
                 )}
                 {hlsUrl
-                  ? <VideoPlayer hlsUrl={hlsUrl} mediaServerUrl={MEDIA_SERVER_URL} />
+                  ? (
+                    <>
+                      <VideoPlayer ref={videoPlayerRef} hlsUrl={hlsUrl} mediaServerUrl={MEDIA_SERVER_URL} />
+                      <BboxOverlay cameraId={selected.cameraId} getLatency={getLatency} />
+                    </>
+                  )
                   : (
                     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "rgba(255,255,255,.5)" }}>
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
