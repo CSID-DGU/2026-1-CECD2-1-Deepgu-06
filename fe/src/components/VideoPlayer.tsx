@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import Hls from "hls.js";
 
 interface Props {
@@ -6,9 +6,17 @@ interface Props {
   mediaServerUrl: string;
 }
 
-const VideoPlayer = ({ hlsUrl, mediaServerUrl }: Props) => {
+export interface VideoPlayerHandle {
+  getLatency: () => number;
+}
+
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ hlsUrl, mediaServerUrl }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    getLatency: () => hlsRef.current?.latency ?? 5,
+  }));
 
   useEffect(() => {
     const video = videoRef.current;
@@ -62,6 +70,7 @@ const VideoPlayer = ({ hlsUrl, mediaServerUrl }: Props) => {
       playsInline
     />
   );
-};
+});
 
+VideoPlayer.displayName = "VideoPlayer";
 export default VideoPlayer;
