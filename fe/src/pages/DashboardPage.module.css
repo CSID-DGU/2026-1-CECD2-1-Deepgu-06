@@ -1,0 +1,200 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  background: #0f1117;
+  color: #f3f4f6;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: #1a1d27;
+  border-right: 1px solid #2a2d3a;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarHeader {
+  padding: 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #2a2d3a;
+  font-size: 22px;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.sectionTitle {
+  padding: 16px 16px 8px;
+  font-size: 11px;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cameraList {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cameraItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 2px;
+}
+
+.cameraItem:hover { background: #2a2d3a; }
+.selected { background: #1e3a5f !important; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.camName { font-size: 14px; color: #f3f4f6; }
+.camLoc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.empty { padding: 12px; font-size: 13px; color: #4b5563; text-align: center; }
+
+.sidebarBottom {
+  padding: 16px;
+  border-top: 1px solid #2a2d3a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.adminLink {
+  color: #9ca3af;
+  font-size: 13px;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.adminLink:hover { background: #2a2d3a; color: #f3f4f6; }
+
+.logoutBtn {
+  background: none;
+  border: 1px solid #374151;
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.logoutBtn:hover { border-color: #ef4444; color: #ef4444; }
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px;
+  gap: 16px;
+}
+
+.mainHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.camTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; color: #fff; }
+.camLocTag { font-size: 13px; color: #6b7280; }
+.statusBadge { font-size: 14px; font-weight: 500; }
+
+.videoWrapper {
+  flex: 1;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 0;
+  border: 1px solid #2a2d3a;
+}
+
+.noStream {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  font-size: 15px;
+}
+
+.controls { display: flex; gap: 12px; }
+
+.startBtn, .stopBtn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.startBtn { background: #10b981; color: #fff; }
+.startBtn:hover:not(:disabled) { background: #059669; }
+.stopBtn { background: #ef4444; color: #fff; }
+.stopBtn:hover:not(:disabled) { background: #dc2626; }
+.startBtn:disabled, .stopBtn:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+.logSection {
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 16px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.logTitle { font-size: 14px; font-weight: 600; color: #f3f4f6; margin: 0 0 12px; }
+.logList { display: flex; flex-direction: column; gap: 8px; }
+.logEmpty { color: #4b5563; font-size: 13px; text-align: center; padding: 12px 0; }
+
+.logItem {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: #0f1117;
+  border-radius: 6px;
+  border-left: 3px solid #f59e0b;
+  color: #f3f4f6;
+}
+
+.logTime { color: #6b7280; white-space: nowrap; }
+
+.emptyMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #4b5563;
+  font-size: 40px;
+}
+
+.emptyMain p { font-size: 16px; margin: 0; }

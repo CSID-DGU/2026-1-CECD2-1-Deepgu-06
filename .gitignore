@@ -46,5 +46,11 @@ CLAUDE.md
 MIDTERM_PRESENTATION*.txt
 
 # OS
+# frontend
+node_modules/
+fe/dist/
+fe/.env.local
+
+# mac/windows
 .DS_Store
 Thumbs.db

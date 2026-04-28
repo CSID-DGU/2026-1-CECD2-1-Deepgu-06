@@ -1,16 +1,16 @@
-name: MEDIA CI/CD
+name: BE CI/CD
 
 on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/media-cd.yml"
-      - "MEDIA/**"
+      - ".github/workflows/be-cd.yml"
+      - "BE/**"
   pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/media-cd.yml"
-      - "MEDIA/**"
+      - ".github/workflows/be-cd.yml"
+      - "BE/**"
   workflow_dispatch:
 
 permissions:
@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 env:
-  ECR_REPOSITORY: media-server
-  CONTAINER_NAME: media-api
+  ECR_REPOSITORY: backend-server
+  CONTAINER_NAME: backend-api
 
 jobs:
   ci:
@@ -36,34 +36,45 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./MEDIA
-          file: ./MEDIA/Dockerfile
+          context: ./BE
+          file: ./BE/Dockerfile
           load: true
           push: false
           platforms: linux/amd64
-          tags: media-server:ci-${{ github.sha }}
+          tags: backend-server:ci-${{ github.sha }}
 
       - name: Smoke test container
         run: |
           set -euxo pipefail
 
-          docker run -d --name media-ci-test -p 9000:9000 media-server:ci-${{ github.sha }}
+          docker run -d \
+            --name be-ci-test \
+            -p 8000:8000 \
+            -e APP_ENV=ci \
+            -e APP_HOST=0.0.0.0 \
+            -e APP_PORT=8000 \
+            -e DB_HOST=dummy \
+            -e DB_PORT=3306 \
+            -e DB_NAME=dummy \
+            -e DB_USER=dummy \
+            -e DB_PASSWORD=dummy \
+            backend-server:ci-${{ github.sha }}
 
           echo "=== container status ==="
           docker ps -a
 
           for i in {1..20}; do
-            if ! docker ps --format '{{.Names}}' | grep -q '^media-ci-test$'; then
+            if ! docker ps --format '{{.Names}}' | grep -q '^be-ci-test$'; then
               echo "container exited early"
-              docker logs media-ci-test || true
+              docker logs be-ci-test || true
               exit 1
             fi
 
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/health || true)
             if [ "$code" = "200" ]; then
               echo "health check passed"
-              docker stop media-ci-test
-              docker rm media-ci-test
+              docker stop be-ci-test
+              docker rm be-ci-test
               exit 0
             fi
 
@@ -71,9 +82,9 @@ jobs:
           done
 
           echo "health check failed"
-          docker logs media-ci-test || true
-          docker stop media-ci-test || true
-          docker rm media-ci-test || true
+          docker logs be-ci-test || true
+          docker stop be-ci-test || true
+          docker rm be-ci-test || true
           exit 1
 
   cd:
@@ -101,8 +112,8 @@ jobs:
       - name: Build and push image to ECR
         uses: docker/build-push-action@v6
         with:
-          context: ./MEDIA
-          file: ./MEDIA/Dockerfile
+          context: ./BE
+          file: ./BE/Dockerfile
           push: true
           platforms: linux/amd64
           tags: |
@@ -112,7 +123,7 @@ jobs:
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST_BE }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
@@ -121,12 +132,6 @@ jobs:
             IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
             IMAGE_TAG=dev-${{ github.sha }}
             CONTAINER_NAME=${{ env.CONTAINER_NAME }}
-            STORAGE_ROOT=/home/${{ secrets.EC2_USER }}/media-server/storage
-
-            whoami
-            groups
-            aws --version
-            sudo docker --version
 
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
               sudo docker login --username AWS --password-stdin \
@@ -137,22 +142,22 @@ jobs:
             sudo docker stop $CONTAINER_NAME || true
             sudo docker rm $CONTAINER_NAME || true
 
-            sudo mkdir -p $STORAGE_ROOT/hls
-            sudo mkdir -p $STORAGE_ROOT/frames
-            sudo mkdir -p $STORAGE_ROOT/clips
-
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
-              -p 9000:9000 \
-              -v $STORAGE_ROOT:/app/storage \
+              -p 8000:8000 \
               -e APP_ENV=prod \
               -e APP_HOST=0.0.0.0 \
-              -e APP_PORT=9000 \
-              -e RTMP_HOST='${{ secrets.RTMP_HOST }}' \
-              -e FFMPEG_BINARY=ffmpeg \
-              -e INSTANCE_ID=media-ec2-1 \
+              -e APP_PORT=8000 \
+              -e DB_HOST='${{ secrets.DB_HOST }}' \
+              -e DB_PORT='${{ secrets.DB_PORT }}' \
+              -e DB_NAME='${{ secrets.DB_NAME }}' \
+              -e DB_USER='${{ secrets.DB_USER }}' \
+              -e DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+              -e MEDIA_SERVER_BASE_URL='${{ secrets.MEDIA_SERVER_BASE_URL }}' \
+              -e APP_BASE_URL='${{ secrets.BE_BASE_URL }}' \
               -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
+              -e JWT_SECRET_KEY='${{ secrets.JWT_SECRET_KEY }}' \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5
@@ -166,7 +171,7 @@ jobs:
       - name: Health check on EC2
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST_BE }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
@@ -181,7 +186,7 @@ jobs:
                 exit 1
               fi
 
-              code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
+              code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/health || true)
               if [ "$code" = "200" ]; then
                 echo "health check passed"
                 exit 0
