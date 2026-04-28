@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://43.201.17.169:8000/api/:path*"
+    },
+    {
+      "source": "/internal/:path*",
+      "destination": "http://43.201.17.169:8000/internal/:path*"
+    },
+    {
+      "source": "/hls/:path*",
+      "destination": "http://3.35.171.137:9000/hls/:path*"
+    }
+  ]
+}
