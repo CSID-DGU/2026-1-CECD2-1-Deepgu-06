@@ -158,6 +158,9 @@ jobs:
               -e APP_BASE_URL='${{ secrets.BE_BASE_URL }}' \
               -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
               -e JWT_SECRET_KEY='${{ secrets.JWT_SECRET_KEY }}' \
+              -e S3_BUCKET_NAME='${{ secrets.S3_BUCKET_NAME }}' \
+              -e AWS_REGION='${{ secrets.AWS_REGION }}' \
+              -e S3_PRESIGNED_EXPIRES=3600 \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5

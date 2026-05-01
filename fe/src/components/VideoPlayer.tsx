@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { useEffect, useRef } from "react";
 import Hls from "hls.js";
 
 interface Props {
@@ -6,17 +6,8 @@ interface Props {
   mediaServerUrl: string;
 }
 
-export interface VideoPlayerHandle {
-  getLatency: () => number;
-}
-
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ hlsUrl, mediaServerUrl }, ref) => {
+const VideoPlayer = ({ hlsUrl, mediaServerUrl }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-
-  useImperativeHandle(ref, () => ({
-    getLatency: () => hlsRef.current?.latency ?? 5,
-  }));
 
   useEffect(() => {
     const video = videoRef.current;
@@ -33,7 +24,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ hlsUrl, mediaServerU
         liveSyncDurationCount: 2,
         liveMaxLatencyDurationCount: 4,
       });
-      hlsRef.current = hls;
       hls.loadSource(fullUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -42,24 +32,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ hlsUrl, mediaServerU
         }
         video.play().catch(() => {});
       });
-
       hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
         if (data.details.live) {
           const liveEdge = data.details.totalduration - 2;
-          if (video.currentTime < liveEdge) {
-            video.currentTime = liveEdge;
-          }
+          if (video.currentTime < liveEdge) video.currentTime = liveEdge;
         }
       });
+      return () => hls.destroy();
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = fullUrl;
       video.play().catch(() => {});
     }
-
-    return () => {
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
-    };
   }, [hlsUrl, mediaServerUrl]);
 
   return (
@@ -70,7 +53,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ hlsUrl, mediaServerU
       playsInline
     />
   );
-});
+};
 
-VideoPlayer.displayName = "VideoPlayer";
 export default VideoPlayer;

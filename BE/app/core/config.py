@@ -31,6 +31,12 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["https://2026-1-cecd-2-1-deepgu-06.vercel.app", "http://localhost:5173"]
 
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str = "ap-northeast-2"
+    s3_bucket_name: str = ""
+    s3_presigned_expires: int = 3600
+
     @property
     def database_url(self) -> str:
         return (

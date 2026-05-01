@@ -1,4 +1,6 @@
 annotated-doc==0.0.4
+boto3>=1.35.0
+python-multipart>=0.0.9
 annotated-types==0.7.0
 anyio==4.13.0
 bcrypt==5.0.0
@@ -31,4 +33,3 @@ starlette==1.0.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn[standard]==0.44.0
-websockets>=12.0
