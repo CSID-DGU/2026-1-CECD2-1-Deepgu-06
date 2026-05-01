@@ -1,16 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getCameras, startStream, stopStream, getStreamStatus } from "../api/camera";
 import type { Camera, StreamStatus } from "../api/camera";
 import VideoPlayer from "../components/VideoPlayer";
-import type { VideoPlayerHandle } from "../components/VideoPlayer";
-import BboxOverlay from "../components/BboxOverlay";
 import Layout from "../components/Layout";
 
 const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "";
 
 const StreamPage = () => {
-  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
-  const getLatency = () => videoPlayerRef.current?.getLatency() ?? 5;
 
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selected, setSelected] = useState<Camera | null>(null);
@@ -148,10 +144,7 @@ const StreamPage = () => {
                 )}
                 {hlsUrl
                   ? (
-                    <>
-                      <VideoPlayer ref={videoPlayerRef} hlsUrl={hlsUrl} mediaServerUrl={MEDIA_SERVER_URL} />
-                      <BboxOverlay cameraId={selected.cameraId} getLatency={getLatency} />
-                    </>
+                    <VideoPlayer hlsUrl={hlsUrl} mediaServerUrl={MEDIA_SERVER_URL} />
                   )
                   : (
                     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "rgba(255,255,255,.5)" }}>

@@ -13,3 +13,9 @@ class StreamSessionStatus(str, Enum):
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
     FAILED = "FAILED"
+
+
+class EventStatus(str, Enum):
+    UNREVIEWED = "UNREVIEWED"
+    REVIEWED = "REVIEWED"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
