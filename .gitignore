@@ -25,3 +25,5 @@ fe/.env.local
 # mac/windows
 .DS_Store
 Thumbs.db
+
+CLAUDE.md
