@@ -5,8 +5,8 @@ from fastapi.responses import JSONResponse
 import app.models  # noqa: F401 — 모든 모델을 SQLAlchemy에 등록
 
 from app.api.auth import router as auth_router
-from app.api.bbox import router as bbox_router
 from app.api.camera import router as camera_router
+from app.api.event import router as event_router
 from app.api.internal import router as internal_router
 from app.api.stream import router as stream_router
 from app.api.user import router as user_router
@@ -56,8 +56,8 @@ def readiness_check():
 
 
 app.include_router(auth_router)
-app.include_router(bbox_router)
 app.include_router(camera_router)
+app.include_router(event_router)
 app.include_router(stream_router)
 app.include_router(user_router)
 app.include_router(internal_router)
