@@ -29,7 +29,7 @@ def generate_clips(
         clips (list): 각 clip의 frame 리스트
     """
 
-    if save:
+    if save and output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
     if verbose:

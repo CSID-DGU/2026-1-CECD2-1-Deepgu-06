@@ -61,7 +61,6 @@ class InternVL:
 
         images = self.preprocess_frames(frames)
         images = torch.stack(images).to(self.device).to(torch.bfloat16)
-
         response = self.model.chat(
             tokenizer=self.tokenizer,
             pixel_values=images,
