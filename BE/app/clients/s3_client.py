@@ -11,7 +11,11 @@ _SIGV4_CONFIG = Config(signature_version="s3v4")
 
 
 def _get_client():
-    kwargs = {"region_name": settings.aws_region, "config": _SIGV4_CONFIG}
+    kwargs = {
+        "region_name": settings.aws_region,
+        "config": _SIGV4_CONFIG,
+        "endpoint_url": f"https://s3.{settings.aws_region}.amazonaws.com",
+    }
     if settings.aws_access_key_id and settings.aws_secret_access_key:
         kwargs["aws_access_key_id"] = settings.aws_access_key_id
         kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
