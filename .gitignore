@@ -1,22 +1,51 @@
-# AI
-venv/
-data/
-outputs/
-__pycache__/
-*.pt
-
-# MEDIA
-# python
+# Python
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 
-# env
+# 환경
 .env
 
-# storage (영상/로그)
-storage/
+# 모델 가중치
+*.pt
+*.pth
+*.ckpt
+*.h5
 
+# 대용량 데이터 / 영상
+AI/ai_pipeline/videos/
+AI/ai_pipeline/Data/
+AI/ai_pipeline/outputs/
+PGL-SUM/data/
+PGL-SUM/Summaries/
+storage/
+data/
+outputs/
+
+# 영상 파일
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# 프로세스
+*.pid
+
+# 작업 메모용 마크다운 (README.md, LICENSE.md 제외)
+*.md
+!README.md
+!**/README.md
+!LICENSE.md
+!**/LICENSE.md
+CLAUDE.md
+
+# 발표 초안
+MIDTERM_PRESENTATION*.txt
+
+# OS
 # frontend
 node_modules/
 fe/dist/
@@ -25,5 +54,4 @@ fe/.env.local
 # mac/windows
 .DS_Store
 Thumbs.db
-
 CLAUDE.md
