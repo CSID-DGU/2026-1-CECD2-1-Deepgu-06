@@ -2,13 +2,16 @@ import uuid
 from datetime import datetime
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
+_SIGV4_CONFIG = Config(signature_version="s3v4")
+
 
 def _get_client():
-    kwargs = {"region_name": settings.aws_region}
+    kwargs = {"region_name": settings.aws_region, "config": _SIGV4_CONFIG}
     if settings.aws_access_key_id and settings.aws_secret_access_key:
         kwargs["aws_access_key_id"] = settings.aws_access_key_id
         kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
