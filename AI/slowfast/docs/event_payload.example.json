@@ -1,0 +1,100 @@
+{
+  "pipeline_run_id": "run_20260505_123456",
+  "cctv_id": 12,
+  "stream_id": "cctv_12",
+  "video_id": "fight_0002",
+  "model_version": "es_d_t3_mix_cap5",
+  "generated_at": "2026-05-05T12:34:56Z",
+  "events": [
+    {
+      "event_id": "cctv_12_20260505T123456Z_evt_0001",
+      "cctv_id": 12,
+      "stream_id": "cctv_12",
+      "video_id": "fight_0002",
+      "label": "fight",
+      "confidence": 0.86,
+      "severity": "high",
+      "start_time_sec": 16.0,
+      "end_time_sec": 35.0,
+      "duration_sec": 19.0,
+      "start_frame": 400,
+      "end_frame": 875,
+      "description": "Two people appear to be in a physical struggle.",
+      "evidence": [
+        "forceful pushing",
+        "close physical confrontation"
+      ],
+      "reasoning_short": "Repeated close-contact aggression is visible.",
+      "thumbnail_times_sec": [
+        17.0,
+        24.0,
+        32.0
+      ],
+      "thumbnail_urls": [
+        "/media/events/cctv_12_evt_0001_t1.jpg",
+        "/media/events/cctv_12_evt_0001_t2.jpg",
+        "/media/events/cctv_12_evt_0001_t3.jpg"
+      ],
+      "clip_video_url": "/media/events/cctv_12_evt_0001.mp4",
+      "clip_video_path": "/srv/media/events/cctv_12_evt_0001.mp4",
+      "detected_at": "2026-05-05T12:34:56Z",
+      "source_fps": 25.0,
+      "clip_ids": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "score_timeline": [
+        {
+          "clip_id": 16,
+          "start_time_sec": 16.0,
+          "end_time_sec": 18.0,
+          "fast_score": 0.5,
+          "fused_score": 0.53,
+          "vlm_used": true,
+          "vlm_label": "non_fight",
+          "vlm_confidence": 0.95
+        },
+        {
+          "clip_id": 17,
+          "start_time_sec": 17.0,
+          "end_time_sec": 19.0,
+          "fast_score": 0.62,
+          "fused_score": 0.62,
+          "vlm_used": false
+        }
+      ],
+      "model_info": {
+        "fast_checkpoint": "early_stop_pr_auc/x3d_s_fast_model_best.pt",
+        "vlm_provider": "internvl",
+        "vlm_sampled_frames": 6,
+        "pipeline_config": "base.yaml",
+        "candidate_name": "es_d_t3_mix_cap5"
+      },
+      "routing_info": {
+        "selected_for_vlm": true,
+        "executed_vlm_calls": 5,
+        "router_prob_low": 0.4,
+        "router_prob_high": 0.6,
+        "uncertainty_threshold": 0.25
+      },
+      "status": "new"
+    }
+  ]
+}
