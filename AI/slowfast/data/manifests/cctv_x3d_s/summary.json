@@ -1,0 +1,31 @@
+{
+  "source_filter": "CCTV",
+  "temporal_window_sec": 2.0,
+  "stride_sec": 1.0,
+  "window_overlap_threshold": 0.3,
+  "gt_overlap_threshold": 0.5,
+  "videos_by_split": {
+    "validation": 70,
+    "testing": 70,
+    "training": 140
+  },
+  "clips_by_split": {
+    "training": 15617,
+    "validation": 7550,
+    "testing": 7201
+  },
+  "labels_by_split": {
+    "training": {
+      "0": 10801,
+      "1": 4816
+    },
+    "validation": {
+      "0": 5241,
+      "1": 2309
+    },
+    "testing": {
+      "0": 5151,
+      "1": 2050
+    }
+  }
+}
