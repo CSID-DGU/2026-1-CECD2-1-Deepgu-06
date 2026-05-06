@@ -1,0 +1,87 @@
+project:
+  output_root: /home/deepgu/slowfast/outputs/runs
+clip:
+  temporal_window_sec: 2.0
+  stride_sec: 1.0
+  sampled_frames: 13
+  resize:
+    width: 160
+    height: 160
+  sampling: uniform
+fast_model:
+  device: auto
+  architecture: x3d_s
+  checkpoint_path: /home/deepgu/slowfast/models/fast/checkpoints/x3d_s_fast_model.pt
+  num_classes: 1
+  input_clip_length: 13
+  input_crop_size: 160
+  batch_size: 8
+  use_pretrained_backbone: false
+  fallback_mode: heuristic
+  amp: true
+  use_pos_weight: true
+data_loader:
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+loss:
+  type: bce
+  gamma: 2.0
+  alpha: null
+sampler:
+  enabled: true
+  weights_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s/training_hard_mining_weights.csv
+  default_weight: 1.0
+router:
+  prob_low: 0.3
+  prob_high: 0.55
+  uncertainty_threshold: 0.22
+  topk_ratio: 0.15
+  use_topk: false
+  alpha_entropy: 0.7
+  alpha_variance: 0.3
+  variance_window: 5
+vlm:
+  provider: internvl
+  sampled_frames: 6
+  prompt_style: binary_fight
+  enabled: true
+  repo_path: /home/deepgu/VERA/InternVL/internvl_chat
+  model_path: /home/deepgu/.cache/huggingface/hub/models--OpenGVLab--InternVL2-8B/snapshots/6fb9ad6924f69424e57fab2ab061d707688f0296
+  local_files_only: true
+  device: cuda:0
+  torch_dtype: bfloat16
+  use_flash_attn: true
+  frame_image_size: 448
+  max_new_tokens: 64
+  do_sample: false
+  temperature: 0.0
+  top_p: 0.9
+  trust_remote_code: true
+  verbose: false
+  load_in_8bit: false
+  load_in_4bit: false
+fusion:
+  fast_weight: 0.5
+  vlm_weight: 0.5
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: true
+    max_drop: 0.08
+    protect_above_score: 0.4
+    protect_floor_score: 0.4
+thresholds:
+  start_score: 0.4
+  end_score: 0.35
+  min_event_duration_sec: 0.5
+  split:
+    enabled: true
+    score_threshold: 0.33
+    min_consecutive_clips: 2
+  score_smoothing:
+    enabled: true
+    window_size: 3
+    method: moving_average
+outputs:
+  save_clip_manifest: true
+  save_frame_samples: false
