@@ -19,6 +19,11 @@ SessionLocal = sessionmaker(
 Base = declarative_base()
 
 
+def initialize_database() -> None:
+    Base.metadata.create_all(bind=engine)
+    _ensure_event_columns()
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -34,3 +39,31 @@ def check_db_connection() -> bool:
         return True
     except Exception:
         return False
+
+
+def _ensure_event_columns() -> None:
+    statements = [
+        "ALTER TABLE events ADD COLUMN ai_event_id VARCHAR(120) NULL",
+        "ALTER TABLE events ADD COLUMN ended_at DATETIME NULL",
+        "ALTER TABLE events ADD COLUMN duration_sec FLOAT NULL",
+        "ALTER TABLE events ADD COLUMN thumbnail_s3_keys TEXT NULL",
+    ]
+    with engine.begin() as connection:
+        try:
+            existing = {
+                row[0]
+                for row in connection.execute(text("SHOW COLUMNS FROM events"))
+            }
+        except Exception:
+            return
+
+        mapping = {
+            "ai_event_id": statements[0],
+            "ended_at": statements[1],
+            "duration_sec": statements[2],
+            "thumbnail_s3_keys": statements[3],
+        }
+        for column_name, statement in mapping.items():
+            if column_name in existing:
+                continue
+            connection.execute(text(statement))
