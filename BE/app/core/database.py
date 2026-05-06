@@ -20,8 +20,11 @@ Base = declarative_base()
 
 
 def initialize_database() -> None:
-    Base.metadata.create_all(bind=engine)
-    _ensure_event_columns()
+    try:
+        Base.metadata.create_all(bind=engine)
+        _ensure_event_columns()
+    except Exception as e:
+        print(f"[DB] 초기화 실패 (DB 연결 불가): {e}")
 
 
 def get_db():
