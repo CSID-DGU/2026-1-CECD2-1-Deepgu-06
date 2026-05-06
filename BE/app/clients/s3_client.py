@@ -35,6 +35,23 @@ def upload_event_video(video_bytes: bytes, camera_id: str, detected_at: datetime
     return key
 
 
+def upload_event_thumbnail(
+    image_bytes: bytes,
+    camera_id: str,
+    detected_at: datetime,
+    suffix: str = ".jpg",
+) -> str:
+    key = f"events/{camera_id}/{detected_at.strftime('%Y/%m')}/{uuid.uuid4().hex}{suffix}"
+    client = _get_client()
+    client.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=key,
+        Body=image_bytes,
+        ContentType="image/jpeg",
+    )
+    return key
+
+
 def generate_presigned_url(s3_key: str) -> str | None:
     if not s3_key or not settings.s3_bucket_name:
         return None
