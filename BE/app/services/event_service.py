@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -24,6 +25,51 @@ class EventService:
             confidence=payload.confidence,
             description=payload.description,
             s3_key=s3_key,
+            status=EventStatus.UNREVIEWED.value,
+            created_at=datetime.utcnow(),
+        )
+        db.add(event)
+        db.commit()
+        db.refresh(event)
+        return event
+
+    @staticmethod
+    def create_from_event_payload(
+        db: Session,
+        payload: EventCreateRequest,
+        *,
+        ai_event_id: str | None = None,
+        ended_at: datetime | None = None,
+        duration_sec: float | None = None,
+        video_bytes: bytes | None = None,
+        thumbnail_bytes_list: list[bytes] | None = None,
+    ) -> Event:
+        s3_key = None
+        if video_bytes:
+            s3_key = s3_client.upload_event_video(video_bytes, payload.camera_id, payload.detected_at)
+
+        thumbnail_keys = []
+        for image_bytes in thumbnail_bytes_list or []:
+            if not image_bytes:
+                continue
+            thumb_key = s3_client.upload_event_thumbnail(
+                image_bytes,
+                payload.camera_id,
+                payload.detected_at,
+            )
+            thumbnail_keys.append(thumb_key)
+
+        event = Event(
+            camera_id=payload.camera_id,
+            ai_event_id=ai_event_id,
+            detected_at=payload.detected_at,
+            ended_at=ended_at,
+            duration_sec=duration_sec,
+            anomaly_type=payload.anomaly_type,
+            confidence=payload.confidence,
+            description=payload.description,
+            s3_key=s3_key,
+            thumbnail_s3_keys=json.dumps(thumbnail_keys, ensure_ascii=False) if thumbnail_keys else None,
             status=EventStatus.UNREVIEWED.value,
             created_at=datetime.utcnow(),
         )

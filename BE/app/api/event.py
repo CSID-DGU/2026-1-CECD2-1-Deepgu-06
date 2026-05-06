@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -44,6 +46,14 @@ def get_event(
 
     detail = EventDetail.model_validate(event)
     detail.video_url = generate_presigned_url(event.s3_key) if event.s3_key else None
+    if event.thumbnail_s3_keys:
+        try:
+            keys = json.loads(event.thumbnail_s3_keys)
+        except json.JSONDecodeError:
+            keys = []
+    else:
+        keys = []
+    detail.thumbnail_urls = [url for url in (generate_presigned_url(key) for key in keys) if url]
     return success_response(detail.model_dump())
 
 
