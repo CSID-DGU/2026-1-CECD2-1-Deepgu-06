@@ -21,15 +21,21 @@ Base = declarative_base()
 
 def initialize_database() -> None:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 2009d36 (fix: DB 연결 실패 시에도 앱 기동되도록 initialize_database 예외 처리)
     try:
         Base.metadata.create_all(bind=engine)
         _ensure_event_columns()
     except Exception as e:
         print(f"[DB] 초기화 실패 (DB 연결 불가): {e}")
+<<<<<<< HEAD
 =======
     Base.metadata.create_all(bind=engine)
     _ensure_event_columns()
 >>>>>>> 9cf5a2e ([Fix] 백엔드 s3저장 로직 변경)
+=======
+>>>>>>> 2009d36 (fix: DB 연결 실패 시에도 앱 기동되도록 initialize_database 예외 처리)
 
 
 def get_db():
