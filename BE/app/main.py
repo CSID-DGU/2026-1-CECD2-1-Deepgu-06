@@ -11,10 +11,12 @@ from app.api.internal import router as internal_router
 from app.api.stream import router as stream_router
 from app.api.user import router as user_router
 from app.core.config import settings
-from app.core.database import check_db_connection
+from app.core.database import check_db_connection, initialize_database
 from app.core.exceptions import add_exception_handlers
 
 app = FastAPI(title=settings.APP_NAME)
+
+initialize_database()
 
 app.add_middleware(
     CORSMiddleware,
