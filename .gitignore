@@ -17,13 +17,11 @@ __pycache__/
 
 # 대용량 데이터 / 영상
 AI/ai_pipeline/videos/
-AI/ai_pipeline/Data/
+AI/ai_pipeline/data/
 AI/ai_pipeline/outputs/
 PGL-SUM/data/
 PGL-SUM/Summaries/
 storage/
-data/
-outputs/
 
 # 영상 파일
 *.mp4
