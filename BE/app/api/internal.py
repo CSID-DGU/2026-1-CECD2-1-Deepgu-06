@@ -3,6 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -135,13 +136,13 @@ async def create_event_payloads(
 
         video_field_name = f"event_{index}_video"
         upload = form.get(video_field_name)
-        video_bytes = await upload.read() if isinstance(upload, UploadFile) else None
+        video_bytes = await upload.read() if isinstance(upload, (UploadFile, StarletteUploadFile)) else None
         thumbnail_bytes_list = []
         thumb_index = 1
         while True:
             thumb_field_name = f"event_{index}_thumb_{thumb_index}"
             thumb_upload = form.get(thumb_field_name)
-            if not isinstance(thumb_upload, UploadFile):
+            if not isinstance(thumb_upload, (UploadFile, StarletteUploadFile)):
                 break
             thumbnail_bytes_list.append(await thumb_upload.read())
             thumb_index += 1
