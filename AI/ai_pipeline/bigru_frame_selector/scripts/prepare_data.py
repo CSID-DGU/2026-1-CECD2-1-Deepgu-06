@@ -52,7 +52,8 @@ import datetime
 import numpy as np
 import cv2
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))  # bigru_frame_selector/scripts/
+sys.path.insert(0, os.path.normpath(os.path.join(_HERE, "../..")))  # ai_pipeline/
 
 from pipeline.clip_generator import generate_clips
 from pipeline.sampler import KeyframeSampler
