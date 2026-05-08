@@ -51,7 +51,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pipeline.sampler import KeyframeSampler
-from models.feature_extractor import ResNet50Extractor
+from models.x3d_feature_extractor import X3DFeatureExtractor
 from scripts.prepare_data import parse_vlm_response
 
 
@@ -399,8 +399,8 @@ def main(args):
     print(f"\n[{_ts()}] 비교 방법: {methods}\n")
 
     # ---------- Feature extractor ----------
-    print(f"[{_ts()}] ResNet-50 로딩 중...")
-    extractor = ResNet50Extractor(device=args.device, batch_size=64)
+    print(f"[{_ts()}] X3D-S 로딩 중...")
+    extractor = X3DFeatureExtractor(device=args.device)
     print(f"[{_ts()}] ResNet-50 로딩 완료")
 
     # ---------- VLM ----------

@@ -47,7 +47,7 @@ import clip
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pipeline.sampler import KeyframeSampler
-from models.feature_extractor import ResNet50Extractor
+from models.x3d_feature_extractor import X3DFeatureExtractor
 
 
 def _ts():
@@ -255,8 +255,8 @@ def main(args):
         normal_feats  /= normal_feats.norm(dim=-1, keepdim=True)
     print(f"[{_ts()}] CLIP 로딩 완료")
 
-    print(f"[{_ts()}] ResNet-50 feature extractor 로딩 중...")
-    extractor = ResNet50Extractor(device=args.device, batch_size=64)
+    print(f"[{_ts()}] X3D-S feature extractor 로딩 중...")
+    extractor = X3DFeatureExtractor(device=args.device)
     print(f"[{_ts()}] ResNet-50 로딩 완료")
 
     # ---------- 선택기 ----------

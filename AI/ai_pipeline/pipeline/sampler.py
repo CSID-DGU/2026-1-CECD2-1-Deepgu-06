@@ -18,7 +18,7 @@ class KeyframeSampler:
 
     입력 candidates 필수 필드:
         clip          : list of np.ndarray (BGR frames)
-        features      : np.ndarray (T, 2048)  — ResNet-50 feature
+        features      : np.ndarray (T, 192)   — X3D-S spatiotemporal feature
     """
 
     def __init__(self, n_frames=8, model_path=None, device="cpu"):
@@ -28,7 +28,7 @@ class KeyframeSampler:
 
         if model_path and os.path.isfile(model_path):
             from models.frame_selector import FrameScorer
-            self.scorer = FrameScorer(input_dim=2048).to(device)
+            self.scorer = FrameScorer(input_dim=192).to(device)
             self.scorer.load_state_dict(
                 torch.load(model_path, map_location=device)
             )
