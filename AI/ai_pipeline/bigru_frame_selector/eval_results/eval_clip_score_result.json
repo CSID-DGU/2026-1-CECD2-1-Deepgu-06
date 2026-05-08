@@ -1,0 +1,27 @@
+{
+  "n_samples": 2000,
+  "anomaly_prompts": [
+    "a person fighting",
+    "a person assaulting another person",
+    "a violent physical altercation",
+    "people involved in a fight",
+    "an act of abuse or violence"
+  ],
+  "methods": {
+    "uniform": {
+      "anomaly_clip_score": 0.24412069515306123,
+      "normal_clip_score": 0.2199749755859375,
+      "discrimination_gap": 0.005563830747329991
+    },
+    "p1": {
+      "anomaly_clip_score": 0.24419128002763604,
+      "normal_clip_score": 0.219975830078125,
+      "discrimination_gap": 0.0055761761320292065
+    },
+    "pgl": {
+      "anomaly_clip_score": 0.24428511639030612,
+      "normal_clip_score": 0.21998193359375,
+      "discrimination_gap": 0.005587776536617263
+    }
+  }
+}

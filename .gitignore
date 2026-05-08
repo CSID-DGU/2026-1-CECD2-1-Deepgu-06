@@ -19,6 +19,8 @@ __pycache__/
 AI/ai_pipeline/videos/
 AI/ai_pipeline/data/
 AI/ai_pipeline/outputs/
+AI/ai_pipeline/bigru_frame_selector/outputs/
+*.npy
 PGL-SUM/data/
 PGL-SUM/Summaries/
 storage/
