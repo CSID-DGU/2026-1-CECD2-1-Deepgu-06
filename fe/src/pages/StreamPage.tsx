@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { getCameras, startStream, stopStream, getStreamStatus } from "../api/camera";
 import type { Camera, StreamStatus } from "../api/camera";
 import VideoPlayer from "../components/VideoPlayer";
+import WebRTCPlayer from "../components/WebRTCPlayer";
 import Layout from "../components/Layout";
 
 const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "";
+const WEBRTC_BASE_URL = import.meta.env.VITE_WEBRTC_BASE_URL || "";
 
 const StreamPage = () => {
 
@@ -63,6 +65,11 @@ const StreamPage = () => {
   const camStatus = streamStatus?.camera_status || selected?.status || "STOPPED";
   const hlsUrl = camStatus === "RUNNING" ? (streamStatus?.current_session?.hls_url || null) : null;
   const isRunning = camStatus === "RUNNING" || camStatus === "STARTING";
+
+  const streamName = hlsUrl?.match(/\/live\/([^/]+)\//)?.[1] ?? selected?.cameraId ?? "";
+  const whepUrl = isRunning && WEBRTC_BASE_URL && streamName
+    ? `${WEBRTC_BASE_URL}/live/${streamName}/whep`
+    : null;
 
   const filteredCameras = cameras.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -142,7 +149,11 @@ const StreamPage = () => {
                     <span style={{ color: "#fff", fontSize: 11, background: "rgba(0,0,0,.4)", padding: "2px 6px", borderRadius: 3 }}>{selected.name}</span>
                   </div>
                 )}
-                {hlsUrl
+                {whepUrl
+                  ? (
+                    <WebRTCPlayer whepUrl={whepUrl} />
+                  )
+                  : hlsUrl
                   ? (
                     <VideoPlayer hlsUrl={hlsUrl} mediaServerUrl={MEDIA_SERVER_URL} />
                   )
