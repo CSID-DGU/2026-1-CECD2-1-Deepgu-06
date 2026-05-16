@@ -66,8 +66,8 @@ const StreamPage = () => {
   const hlsUrl = camStatus === "RUNNING" ? (streamStatus?.current_session?.hls_url || null) : null;
   const isRunning = camStatus === "RUNNING" || camStatus === "STARTING";
 
-  const streamName = hlsUrl?.match(/\/live\/([^/]+)\//)?.[1] ?? selected?.cameraId ?? "";
-  const whepUrl = isRunning && WEBRTC_BASE_URL && streamName
+  const streamName = hlsUrl?.match(/\/live\/([^/]+)\//)?.[1] ?? "";
+  const whepUrl = camStatus === "RUNNING" && WEBRTC_BASE_URL && streamName
     ? `${WEBRTC_BASE_URL}/live/${streamName}/whep`
     : null;
 
