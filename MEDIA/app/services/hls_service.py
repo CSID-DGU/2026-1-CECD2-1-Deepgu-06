@@ -155,5 +155,4 @@ def monitor_processes() -> None:
                 if camera_id in _registry:
                     _registry[camera_id]["last_status"] = new_status
 
-            if new_status == "RUNNING":
-                send_callback(entry["callback_url"], camera_id, "RUNNING", entry["hls_url"])
+            send_callback(entry["callback_url"], camera_id, new_status, entry["hls_url"])
