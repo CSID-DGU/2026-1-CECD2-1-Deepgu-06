@@ -52,7 +52,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pipeline.sampler import KeyframeSampler
 from models.x3d_feature_extractor import X3DFeatureExtractor
-from scripts.prepare_data import parse_vlm_response
+
+
+def parse_vlm_response(pred):
+    """vlm.predict() dict → int (1=anomaly, 0=normal, -1=uncertain)."""
+    if isinstance(pred, dict):
+        label = pred.get("label", "uncertain")
+    else:
+        label = str(pred).lower()
+    if label in ("fight", "fall", "anomaly", "abnormal"):
+        return 1
+    if label == "normal":
+        return 0
+    return -1
 
 
 # -----------------------------------------------------------------------
@@ -451,8 +463,13 @@ def main(args):
             continue
         print(f"  디코딩: {len(frames)}프레임 (원본 {frame_indices[-1]+1}f 중 샘플)")
 
-        # Feature 추출
-        features = extractor.extract_from_frames(frames)  # (T, 2048)
+        # Feature 추출 — X3D-S는 항상 N_FRAMES(13)개 feature 반환
+        features = extractor.extract_from_frames(frames)  # (13, 192)
+        n_feat = len(features)
+
+        # feature 인덱스(0~12) → 실제 frames 인덱스(0~len(frames)-1) 역매핑
+        def feat_to_frame(fi):
+            return int(fi / max(n_feat - 1, 1) * (len(frames) - 1))
 
         row = {"stem": stem, "gt_label": gt, "cls_name": cls_name}
 
@@ -473,10 +490,10 @@ def main(args):
         print(f"  Uniform  idx={u_idx}  pred={'ANOM' if u_pred==1 else 'NORM' if u_pred==0 else 'ERR'} {mark}")
 
         # ── Phase 1 ──────────────────────────────────────────────────
-        c1 = {"clip": [None]*len(frames), "features": features}
+        c1 = {"clip": [None]*n_feat, "features": features}
         p1_sampler.sample(c1)
-        p1_idx    = c1["selected_indices"]
-        p1_frames = [frames[i] for i in p1_idx if i < len(frames)]
+        p1_idx    = [feat_to_frame(i) for i in c1["selected_indices"]]
+        p1_frames = [frames[i] for i in p1_idx]
         try:
             p1_raw = vlm.predict(p1_frames)
             p1_pred = parse_vlm_response(p1_raw)
@@ -492,10 +509,10 @@ def main(args):
 
         # ── Phase 2 (BiGRU) ──────────────────────────────────────────
         if p2_sampler:
-            c2 = {"clip": [None]*len(frames), "features": features}
+            c2 = {"clip": [None]*n_feat, "features": features}
             p2_sampler.sample(c2)
-            p2_idx    = c2["selected_indices"]
-            p2_frames = [frames[i] for i in p2_idx if i < len(frames)]
+            p2_idx    = [feat_to_frame(i) for i in c2["selected_indices"]]
+            p2_frames = [frames[i] for i in p2_idx]
             try:
                 p2_raw = vlm.predict(p2_frames)
                 p2_pred = parse_vlm_response(p2_raw)
@@ -511,10 +528,10 @@ def main(args):
 
         # ── PGL-SUM ──────────────────────────────────────────────────
         if pgl_sampler:
-            c3 = {"clip": frames, "features": features}
+            c3 = {"clip": frames[:n_feat], "features": features}
             pgl_sampler.sample(c3)
-            pgl_idx    = c3["selected_indices"]
-            pgl_frames = [frames[i] for i in pgl_idx if i < len(frames)]
+            pgl_idx    = [feat_to_frame(i) for i in c3["selected_indices"]]
+            pgl_frames = [frames[i] for i in pgl_idx]
             try:
                 pgl_raw = vlm.predict(pgl_frames)
                 pgl_pred = parse_vlm_response(pgl_raw)
