@@ -11,7 +11,7 @@ class FrameScorer(nn.Module):
     점수가 높은 frame일수록 InternVL2가 anomaly를 판단하는 데 유용한 frame입니다.
     """
 
-    def __init__(self, input_dim=2048, hidden_dim=256, dropout=0.3):
+    def __init__(self, input_dim=192, hidden_dim=256, dropout=0.3):
         super().__init__()
         self.gru = nn.GRU(
             input_dim, hidden_dim,
@@ -53,7 +53,7 @@ class DifferentiableFrameSelector(nn.Module):
       frame을 선택하는 법을 배움.
     """
 
-    def __init__(self, input_dim=2048, hidden_dim=256,
+    def __init__(self, input_dim=192, hidden_dim=256,
                  n_frames=8, n_classes=2, dropout=0.3):
         super().__init__()
         self.n_frames = n_frames

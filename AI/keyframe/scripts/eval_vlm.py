@@ -22,7 +22,7 @@ features는 on-the-fly로 추출 (ResNet-50) → clip_len 무관하게 동작.
   PGL-SUM      — anomaly 재학습 + CLIP proxy (--pglsum_anomaly_path + --pglsum_clip)
 
 사용법:
-  cd AI/ai_pipeline
+  cd AI/keyframe
   nohup python -u scripts/eval_vlm.py \\
       --label_path          outputs/training_data/test.json \\
       --video_dir           videos \\
@@ -54,7 +54,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pipeline.sampler import KeyframeSampler
-from models.feature_extractor import ResNet50Extractor
+from models.x3d_feature_extractor import X3DFeatureExtractor
 from scripts.prepare_data import parse_vlm_response
 
 
@@ -302,8 +302,8 @@ def main(args):
     print(f"\n[{_ts()}] 비교 방법: {methods}\n")
 
     # ---------- Feature extractor (on-the-fly) ----------
-    print(f"[{_ts()}] ResNet-50 로딩 중...")
-    extractor = ResNet50Extractor(device=args.device, batch_size=64)
+    print(f"[{_ts()}] X3D-S 로딩 중...")
+    extractor = X3DFeatureExtractor(device=args.device)
     print(f"[{_ts()}] ResNet-50 로딩 완료")
 
     # ---------- VLM ----------

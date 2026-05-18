@@ -19,6 +19,8 @@ __pycache__/
 AI/ai_pipeline/videos/
 AI/ai_pipeline/data/
 AI/ai_pipeline/outputs/
+AI/ai_pipeline/bigru_frame_selector/outputs/
+*.npy
 PGL-SUM/data/
 PGL-SUM/Summaries/
 storage/
@@ -40,8 +42,12 @@ storage/
 !**/LICENSE.md
 CLAUDE.md
 
-# 발표 초안
-MIDTERM_PRESENTATION*.txt
+# 작업 메모/발표자료 텍스트 (requirements.txt, robots.txt 제외)
+*.txt
+!requirements.txt
+!**/requirements.txt
+!robots.txt
+!**/robots.txt
 
 # OS
 # frontend
