@@ -47,7 +47,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))        # bigru_frame_selector/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))    # ai_pipeline/
 
 from pipeline.sampler import KeyframeSampler
 from models.frame_selector import DifferentiableFrameSelector
@@ -95,7 +96,8 @@ def classifier_predict(model, features, temperature=0.1):
     주의: 이 classifier는 Phase 2 frame 선택으로 학습되었으므로,
     Phase 1/PGL-SUM 선택 frame에 적용하면 proxy 지표로만 해석해야 함.
     """
-    feat_t = torch.FloatTensor(features)
+    device = next(model.parameters()).device
+    feat_t = torch.FloatTensor(features).to(device)
     model.eval()
     with torch.no_grad():
         logits, _ = model(feat_t, temperature)
@@ -167,7 +169,7 @@ def main(args):
     clf_model = None
     if args.model_path and os.path.isfile(args.model_path):
         clf_model = DifferentiableFrameSelector(
-            input_dim=2048, hidden_dim=256, n_frames=args.n_frames, n_classes=2
+            input_dim=args.input_dim, hidden_dim=256, n_frames=args.n_frames, n_classes=2
         ).to(args.device)
         clf_model.scorer.load_state_dict(
             torch.load(args.model_path, map_location=args.device)
@@ -304,7 +306,8 @@ def main(args):
         return line
 
     if has_clf:
-        print(_fmt_row("Classifier Acc(*)", [p1_acc, p2_acc, pgl_acc] if has_p2 else [p1_acc, pgl_acc], "{:.1f}%"))
+        clf_vals = [p1_acc] + ([p2_acc] if has_p2 else []) + ([pgl_acc] if has_pgl else [])
+        print(_fmt_row("Classifier Acc(*)", clf_vals, "{:.1f}%"))
     print(_fmt_row("Frame Diversity",
                    [p1_div] + ([p2_div] if has_p2 else []) + ([pgl_div] if has_pgl else []),
                    "{:.4f}"))
@@ -365,6 +368,8 @@ if __name__ == "__main__":
     parser.add_argument("--min_gap",            type=int, default=4,
                         help="PGLSumSampler 의 최소 frame 간격.")
 
+    parser.add_argument("--input_dim",  type=int,  default=192,
+                        help="Phase 2 모델 입력 차원. X3D-S=192, ResNet-50=2048.")
     parser.add_argument("--n_frames",  type=int,  default=8)
     parser.add_argument("--device",    default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--use_vlm",   action="store_true",

@@ -144,9 +144,9 @@ def main(args):
     print(f"train: {len(train_recs)}, val: {len(val_recs)}")
 
     train_loader = DataLoader(ClipDataset(train_recs), batch_size=args.batch_size,
-                              shuffle=True,  collate_fn=collate_fn, num_workers=2)
+                              shuffle=True,  collate_fn=collate_fn, num_workers=8, pin_memory=True)
     val_loader   = DataLoader(ClipDataset(val_recs),   batch_size=args.batch_size,
-                              shuffle=False, collate_fn=collate_fn, num_workers=2)
+                              shuffle=False, collate_fn=collate_fn, num_workers=8, pin_memory=True)
 
     # 모델
     model = DifferentiableFrameSelector(
