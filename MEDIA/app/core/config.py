@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     rtmp_port: int = 1935
     rtmp_app: str = "stream"
 
+    mediamtx_api_url: str = "http://localhost:9997"
+    mediamtx_rtmp_app: str = "live"
+
     instance_id: str = "media-instance-1"
     callback_secret: str = ""
 

@@ -144,15 +144,15 @@ jobs:
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
+              --add-host=host.docker.internal:host-gateway \
               -p 9000:9000 \
-              -v $STORAGE_ROOT:/app/storage \
               -e APP_ENV=prod \
               -e APP_HOST=0.0.0.0 \
               -e APP_PORT=9000 \
-              -e RTMP_HOST='${{ secrets.RTMP_HOST }}' \
-              -e FFMPEG_BINARY=ffmpeg \
               -e INSTANCE_ID=media-ec2-1 \
               -e CALLBACK_SECRET='${{ secrets.CALLBACK_SECRET }}' \
+              -e MEDIAMTX_API_URL='http://host.docker.internal:9997' \
+              -e MEDIAMTX_RTMP_APP='live' \
               $IMAGE_URI:$IMAGE_TAG
 
             sleep 5
