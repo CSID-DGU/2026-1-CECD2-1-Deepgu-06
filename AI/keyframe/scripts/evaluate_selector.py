@@ -47,8 +47,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))        # bigru_frame_selector/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))    # ai_pipeline/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))        # keyframe/
 
 from pipeline.sampler import KeyframeSampler
 from models.frame_selector import DifferentiableFrameSelector

@@ -14,7 +14,7 @@ PGL-SUM을 이상행동 감지 목적으로 재학습.
 손실 함수: BCELoss (sigmoid 출력 → 이상행동 확률)
 
 사용법:
-  cd AI/ai_pipeline
+  cd AI/keyframe
   python scripts/train_pglsum_anomaly.py \\
       --train_json        outputs/training_data/train.json \\
       --annotation_path   Data/annotations/temporal_anomaly.txt \\

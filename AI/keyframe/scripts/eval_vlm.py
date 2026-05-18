@@ -22,7 +22,7 @@ features는 on-the-fly로 추출 (ResNet-50) → clip_len 무관하게 동작.
   PGL-SUM      — anomaly 재학습 + CLIP proxy (--pglsum_anomaly_path + --pglsum_clip)
 
 사용법:
-  cd AI/ai_pipeline
+  cd AI/keyframe
   nohup python -u scripts/eval_vlm.py \\
       --label_path          outputs/training_data/test.json \\
       --video_dir           videos \\

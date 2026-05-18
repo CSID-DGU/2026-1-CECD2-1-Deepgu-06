@@ -20,7 +20,7 @@
   - 클래스별 breakdown (Abuse / Assault / Fighting / Normal)
 
 사용법:
-  cd AI/ai_pipeline
+  cd AI/keyframe
   nohup python -u scripts/eval_vlm_video.py \\
       --video_dir              videos \\
       --annotation_path        Data/annotations/temporal_anomaly.txt \\
