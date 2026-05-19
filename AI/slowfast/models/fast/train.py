@@ -298,13 +298,17 @@ def save_checkpoint(path, model, architecture, config, pos_weight, loss_type, lo
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/deepgu/slowfast/configs/base.yaml")
+    project_root = Path(__file__).resolve().parents[2]
+    parser.add_argument("--config", default=str(project_root / "configs" / "base.yaml"))
     parser.add_argument("--csv", default=None)
     parser.add_argument("--val-csv", default=None)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--output-dir", default="/home/deepgu/slowfast/models/fast/checkpoints")
+    parser.add_argument(
+        "--output-dir",
+        default=str(project_root / "models" / "fast" / "checkpoints"),
+    )
     args = parser.parse_args()
     train(args)
 
