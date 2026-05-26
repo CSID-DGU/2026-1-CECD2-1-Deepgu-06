@@ -12,7 +12,7 @@ Phase 1 (Temporal Clustering + Motion) + InternVL2로 pseudo-label을 생성합�
   - features/{clip_id}.npy : ResNet-50 features (T, 2048)
 
 사용법:
-  cd AI/ai_pipeline
+  cd AI/keyframe
   python scripts/generate_pseudo_labels.py \
       --output_dir outputs/pseudo_labels \
       --n_frames 8

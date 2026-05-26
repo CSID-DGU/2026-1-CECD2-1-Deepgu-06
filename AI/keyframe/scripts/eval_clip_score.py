@@ -36,7 +36,7 @@ from PIL import Image
 import torch
 import clip
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))        # keyframe/
 from pipeline.sampler import KeyframeSampler
 
 
@@ -170,8 +170,8 @@ def main(args):
     with open(args.label_path) as f:
         all_records = json.load(f)
 
-    anom_recs   = [r for r in all_records if r["gt_label"] == 1]
-    normal_recs = [r for r in all_records if r["gt_label"] == 0]
+    anom_recs   = [r for r in all_records if int(r["gt_label"]) == 1]
+    normal_recs = [r for r in all_records if int(r["gt_label"]) == 0]
     random.shuffle(anom_recs)
     random.shuffle(normal_recs)
     n_each  = args.n_samples // 2
