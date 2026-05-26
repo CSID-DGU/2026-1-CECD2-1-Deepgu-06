@@ -1,7 +1,22 @@
 import math
+import os
+import subprocess
 from pathlib import Path
 
 import cv2
+
+
+# [수정] mp4v → H.264 변환 헬퍼: 브라우저 호환 H.264 mp4 생성
+def _transcode_to_h264(src: str, dst: str) -> bool:
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-i", src, "-c:v", "libx264", "-preset", "fast",
+             "-crf", "23", "-movflags", "+faststart", "-an", dst],
+            capture_output=True, timeout=120,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
 
 
 def normalize_video_fps(fps, default=30.0):
@@ -39,8 +54,11 @@ def save_video(frames, output_path, fps):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     height, width = frames[0].shape[:2]
+
+    # [수정] mp4v로 먼저 쓰고 ffmpeg으로 H.264 변환 (브라우저 호환)
+    tmp_path = str(output_path) + ".tmp_mp4v.mp4"
     writer = cv2.VideoWriter(
-        str(output_path),
+        tmp_path,
         cv2.VideoWriter_fourcc(*"mp4v"),
         float(fps),
         (width, height),
@@ -50,6 +68,12 @@ def save_video(frames, output_path, fps):
             frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LINEAR)
         writer.write(frame)
     writer.release()
+
+    if _transcode_to_h264(tmp_path, str(output_path)):
+        os.remove(tmp_path)
+    else:
+        import shutil
+        shutil.move(tmp_path, str(output_path))
 
 
 def clip_frame_span(clip_id, clip_length, stride):
