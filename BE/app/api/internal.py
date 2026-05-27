@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from app.core.broadcaster import broadcast as broadcast_event
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AppException
@@ -67,6 +68,12 @@ async def create_event(
 
     video_bytes = await video.read() if video else None
     event = EventService.create(db, payload, video_bytes)
+    await broadcast_event(camera_id, {
+        "camera_id": camera_id,
+        "anomaly_type": anomaly_type,
+        "confidence": confidence,
+        "detected_at": detected_at.isoformat(),
+    })
     return success_response(EventItem.model_validate(event).model_dump())
 
 
@@ -164,6 +171,12 @@ async def create_event_payloads(
             video_bytes=video_bytes,
             thumbnail_bytes_list=thumbnail_bytes_list,
         )
+        await broadcast_event(str(camera_id), {
+            "camera_id": str(camera_id),
+            "anomaly_type": str(event_data.get("label") or "fight"),
+            "confidence": float(event_data.get("confidence") or 0.0),
+            "detected_at": detected_at.isoformat(),
+        })
         created.append(
             {
                 "db_event": EventItem.model_validate(created_event).model_dump(),

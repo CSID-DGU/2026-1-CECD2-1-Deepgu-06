@@ -3,6 +3,7 @@ import { getCameras, startStream, stopStream, getStreamStatus } from "../api/cam
 import type { Camera, StreamStatus } from "../api/camera";
 import VideoPlayer from "../components/VideoPlayer";
 import WebRTCPlayer from "../components/WebRTCPlayer";
+import EventNotification from "../components/EventNotification";
 import Layout from "../components/Layout";
 
 const MEDIA_SERVER_URL = import.meta.env.VITE_MEDIA_SERVER_URL || "";
@@ -84,6 +85,8 @@ const StreamPage = () => {
   };
 
   return (
+    <>
+    <EventNotification cameraId={selected?.cameraId ?? null} />
     <Layout
       title={selected ? selected.name : "실시간 스트리밍"}
       subtitle={selected ? selected.location : undefined}
@@ -220,6 +223,7 @@ const StreamPage = () => {
         </div>
       </div>
     </Layout>
+    </>
   );
 };
 

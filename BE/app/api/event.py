@@ -2,9 +2,11 @@ import json
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 
 from app.clients.s3_client import generate_presigned_url
 from app.core.auth import get_current_user, require_admin
+from app.core.broadcaster import subscribe
 from app.core.database import get_db
 from app.core.exceptions import AppException
 from app.schemas.event import EventDetail, EventItem, EventListResponse, EventStatusUpdateRequest
@@ -12,6 +14,14 @@ from app.services.event_service import EventService
 from app.utils.response import success_response
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+
+@router.get("/stream")
+async def event_stream(camera_id: str = Query(...)):
+    async def generator():
+        async for event in subscribe(camera_id):
+            yield {"data": json.dumps(event, ensure_ascii=False)}
+    return EventSourceResponse(generator())
 
 
 @router.get("", response_model=dict)
