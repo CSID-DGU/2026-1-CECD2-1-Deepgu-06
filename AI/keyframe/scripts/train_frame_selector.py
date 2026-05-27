@@ -46,7 +46,7 @@ class ClipDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.records[idx]
-        features = np.load(item["features_path"]).astype(np.float32)  # (T, 2048)
+        features = np.load(item["features_path"]).astype(np.float32)  # (T, 192)
 
         T = len(features)
         if T > self.max_len:
@@ -87,7 +87,7 @@ def run_epoch(model, loader, criterion, optimizer, device, temperature, train=Tr
         batch_logits = []
         for i in range(len(feats)):
             t      = lengths[i].item()
-            feat_i = feats[i, :t]                        # (T, 2048)
+            feat_i = feats[i, :t]                        # (T, 192)
             logits, _ = model(feat_i, temperature)       # (n_classes,)
             batch_logits.append(logits)
 
@@ -144,13 +144,13 @@ def main(args):
     print(f"train: {len(train_recs)}, val: {len(val_recs)}")
 
     train_loader = DataLoader(ClipDataset(train_recs), batch_size=args.batch_size,
-                              shuffle=True,  collate_fn=collate_fn, num_workers=2)
+                              shuffle=True,  collate_fn=collate_fn, num_workers=8, pin_memory=True)
     val_loader   = DataLoader(ClipDataset(val_recs),   batch_size=args.batch_size,
-                              shuffle=False, collate_fn=collate_fn, num_workers=2)
+                              shuffle=False, collate_fn=collate_fn, num_workers=8, pin_memory=True)
 
     # 모델
     model = DifferentiableFrameSelector(
-        input_dim=2048, hidden_dim=256,
+        input_dim=192, hidden_dim=256,
         n_frames=args.n_frames, n_classes=2,
     ).to(args.device)
 

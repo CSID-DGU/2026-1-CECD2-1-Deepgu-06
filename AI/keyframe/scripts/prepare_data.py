@@ -3,7 +3,7 @@
 
 동작:
   1. 비디오를 clip으로 분할 (clip_generator 재사용)
-  2. ResNet-50으로 clip별 frame features 추출
+  2. X3D-S로 clip별 frame-level spatiotemporal features 추출
   3. Phase 1 sampler(Temporal Clustering + Motion)로 대표 frame 선택
   4. InternVL2로 선택된 frame을 보고 anomaly/normal 판별 → pseudo-label
      (--skip_vlm 시 gt_label 직접 사용)
@@ -23,7 +23,7 @@
 출력:
   OUTPUT_DIR/
   ├── features/
-  │   └── {clip_id}.npy          # ResNet-50 features (T, 2048)
+  │   └── {clip_id}.npy          # X3D-S features (T', 192)
   ├── train.json                  # 학습용 pseudo-labels
   └── test.json                   # 평가용 pseudo-labels
 
@@ -52,11 +52,12 @@ import datetime
 import numpy as np
 import cv2
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))  # keyframe/scripts/
+sys.path.insert(0, os.path.normpath(os.path.join(_HERE, "..")))  # keyframe/
 
 from pipeline.clip_generator import generate_clips
 from pipeline.sampler import KeyframeSampler
-from models.feature_extractor import ResNet50Extractor
+from models.x3d_feature_extractor import X3DFeatureExtractor
 
 
 def _ts():
@@ -212,7 +213,7 @@ def process_video(video_path, gt_label, extractor, sampler, vlm,
             # features만 있고 label이 없는 경우도 있으므로 features만 skip
             pass
         else:
-            features = extractor.extract_from_frames(frames)  # (T, 2048)
+            features = extractor.extract_from_frames(frames)  # (T', 192)
             np.save(feat_path, features)
 
         features = np.load(feat_path)
@@ -276,7 +277,7 @@ def main(args):
     os.makedirs(feat_dir, exist_ok=True)
 
     print(f"[{_ts()}] 모델 초기화 중...")
-    extractor = ResNet50Extractor(device=args.device)
+    extractor = X3DFeatureExtractor(device=args.device)
     sampler   = KeyframeSampler(n_frames=args.n_frames)
 
     if args.skip_vlm:

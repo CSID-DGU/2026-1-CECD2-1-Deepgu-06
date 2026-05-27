@@ -12,7 +12,7 @@ from utils.config import load_config
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/deepgu/slowfast/configs/base.yaml")
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "base.yaml"))
     parser.add_argument("--video", required=True)
     parser.add_argument("--run-name", default="single_video")
     parser.add_argument("--cctv-id", type=int, default=None)
