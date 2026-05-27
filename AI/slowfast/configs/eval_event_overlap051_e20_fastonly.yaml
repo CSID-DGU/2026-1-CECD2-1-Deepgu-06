@@ -1,0 +1,70 @@
+project:
+  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap051_e20_fastonly
+
+clip:
+  temporal_window_sec: 2.0
+  stride_sec: 1.0
+  sampled_frames: 13
+  resize:
+    width: 160
+    height: 160
+  sampling: uniform
+
+fast_model:
+  device: auto
+  architecture: x3d_s
+  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap051_e20/x3d_s_fast_model_best.pt
+  num_classes: 1
+  input_clip_length: 13
+  input_crop_size: 160
+  batch_size: 8
+  use_pretrained_backbone: false
+  fallback_mode: heuristic
+  amp: true
+  use_pos_weight: true
+
+data_loader:
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+
+router:
+  prob_low: 0.40
+  prob_high: 0.60
+  uncertainty_threshold: 0.25
+  topk_ratio: 0.15
+  use_topk: false
+  alpha_entropy: 0.7
+  alpha_variance: 0.3
+  variance_window: 5
+
+vlm:
+  provider: internvl
+  enabled: false
+
+fusion:
+  fast_weight: 0.5
+  vlm_weight: 0.5
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: true
+    max_drop: 0.12
+    protect_above_score: 0.42
+    protect_floor_score: 0.36
+
+thresholds:
+  start_score: 0.47
+  end_score: 0.42
+  min_event_duration_sec: 0.5
+  split:
+    enabled: true
+    score_threshold: 0.33
+    min_consecutive_clips: 2
+  score_smoothing:
+    enabled: true
+    window_size: 3
+    method: moving_average
+
+outputs:
+  save_clip_manifest: true
+  save_frame_samples: false

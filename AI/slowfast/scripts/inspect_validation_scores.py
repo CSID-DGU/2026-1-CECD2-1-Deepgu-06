@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import torch
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -96,9 +97,17 @@ def main():
 
     positives = [row["fighting_prob"] for row in rows if row["label"] == 1]
     negatives = [row["fighting_prob"] for row in rows if row["label"] == 0]
+
+    all_labels = [row["label"] for row in rows]
+    all_probs = [row["fighting_prob"] for row in rows]
+    pr_auc = float(average_precision_score(all_labels, all_probs))
+    roc_auc = float(roc_auc_score(all_labels, all_probs))
+
     payload = {
         "checkpoint": str(checkpoint_path),
         "csv": args.csv,
+        "pr_auc": pr_auc,
+        "roc_auc": roc_auc,
         "positive_prob_summary": summarize(positives),
         "negative_prob_summary": summarize(negatives),
         "rows": rows,
@@ -108,6 +117,7 @@ def main():
     ensure_dir(output_path.parent)
     write_json(output_path, payload)
     print(f"[validation] output={output_path}")
+    print(f"[validation] pr_auc={pr_auc:.4f}  roc_auc={roc_auc:.4f}")
     print(f"[validation] positive={payload['positive_prob_summary']}")
     print(f"[validation] negative={payload['negative_prob_summary']}")
 

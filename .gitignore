@@ -21,10 +21,14 @@ AI/ai_pipeline/data/
 AI/ai_pipeline/outputs/
 AI/ai_pipeline/bigru_frame_selector/outputs/
 *.npy
+AI/slowfast/outputs/
 PGL-SUM/data/
 PGL-SUM/Summaries/
 storage/
+
+# 로그 및 결과 파일
 *.csv
+*.log
 
 # 영상 파일
 *.mp4
