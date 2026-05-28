@@ -1,0 +1,84 @@
+project:
+  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap030_focal_internvl_event
+
+clip:
+  temporal_window_sec: 2.0
+  stride_sec: 1.0
+  sampled_frames: 13
+  resize:
+    width: 160
+    height: 160
+  sampling: uniform
+
+fast_model:
+  device: auto
+  architecture: x3d_s
+  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap030_focal/x3d_s_fast_model_best.pt
+  num_classes: 1
+  input_clip_length: 13
+  input_crop_size: 160
+  batch_size: 8
+  use_pretrained_backbone: false
+  fallback_mode: heuristic
+  amp: true
+  use_pos_weight: true
+
+data_loader:
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+
+vlm:
+  provider: internvl
+  enabled: true
+  level: event                  # clip(기존) vs event(신규)
+  sampled_frames_per_event: 8   # 이벤트 길이와 무관하게 균일 샘플링
+  accept_threshold: 0.65        # >= 이 값 → accept
+  reject_threshold: 0.35        # <= 이 값 → reject
+  uncertain_action: keep        # accept/reject 사이 → keep (FN 방지)
+  peak_score_max: 0.85          # fast peak > 이 값 → VLM 없이 자동 accept
+  max_calls_per_video: 9999     # 사실상 무제한 (나중에 튜닝용)
+  # InternVL 설정 (기존과 동일)
+  repo_path: /home/deepgu/VERA/InternVL/internvl_chat
+  model_path: /home/deepgu/.cache/huggingface/hub/models--OpenGVLab--InternVL2-8B/snapshots/6fb9ad6924f69424e57fab2ab061d707688f0296
+  local_files_only: true
+  device: cuda:0
+  torch_dtype: bfloat16
+  use_flash_attn: false
+  frame_image_size: 448
+  max_new_tokens: 64
+  do_sample: false
+  temperature: 0.0
+  top_p: 0.9
+  trust_remote_code: true
+  verbose: false
+  load_in_8bit: false
+  load_in_4bit: false
+
+# router/fusion은 event-level에서 미사용.
+# fast-only event 생성에 필요한 fusion 기본값만 유지.
+fusion:
+  fast_weight: 1.0
+  vlm_weight: 0.0
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: false
+
+thresholds:
+  start_score: 0.47
+  end_score: 0.42
+  min_event_duration_sec: 0.5
+  split:
+    enabled: true
+    score_threshold: 0.33
+    min_consecutive_clips: 2
+  score_smoothing:
+    enabled: true
+    window_size: 3
+    method: moving_average
+
+outputs:
+  save_clip_manifest: false
+  save_run_artifacts: true
+  save_event_media: false
+  save_frame_samples: false
