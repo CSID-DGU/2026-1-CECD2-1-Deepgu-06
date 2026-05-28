@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import sys
 from pathlib import Path
@@ -10,7 +11,7 @@ import cv2
 import numpy as np
 
 from models.vlm.parser import parse_vlm_response
-from models.vlm.prompts import build_binary_fight_prompt
+from models.vlm.prompts import build_binary_fight_prompt, build_event_fight_prompt
 
 
 class MockVLMProvider:
@@ -51,7 +52,7 @@ class InternVLVLMProvider:
         model = runtime["model"]
         tokenizer = runtime["tokenizer"]
 
-        sampled_frames = self._sample_frames(clip_record["frames"])
+        sampled_frames = _sample_frames(clip_record["frames"], self.sampled_frames)
         question = self._build_question(prompt, num_frames=len(sampled_frames))
         pixel_values, num_patches_list = self._build_pixel_values(sampled_frames, runtime)
         pixel_values = pixel_values.to(dtype=runtime["dtype"])
@@ -231,6 +232,71 @@ class InternVLVLMProvider:
         return pixel_values, num_patches_list
 
 
+def _sample_frames(frames: List[np.ndarray], count: int) -> List[np.ndarray]:
+    if not frames:
+        raise ValueError("cannot run VLM on an empty clip")
+    count = min(count, len(frames))
+    if count <= 1:
+        return [frames[0]]
+    last_index = len(frames) - 1
+    anchor_indices = [0, last_index // 2, last_index]
+    if count <= 3:
+        chosen = sorted(set(anchor_indices[:count]))
+    else:
+        extra_needed = count - len(set(anchor_indices))
+        extra_indices = np.linspace(0, last_index, num=extra_needed + 2)[1:-1]
+        chosen = sorted(set(anchor_indices + [int(round(i)) for i in extra_indices]))
+        if len(chosen) > count:
+            chosen = chosen[:count]
+        while len(chosen) < count:
+            for candidate in range(last_index + 1):
+                if candidate not in chosen:
+                    chosen.append(candidate)
+                if len(chosen) == count:
+                    break
+            chosen = sorted(chosen)
+    return [frames[i] for i in chosen]
+
+
+class BedrockVLMProvider:
+    def __init__(self, config):
+        self.model_id = str(config.get("model_id", "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
+        self.region = str(config.get("region", "us-east-1"))
+        self.max_tokens = int(config.get("max_tokens", 256))
+        self.sampled_frames = int(config.get("sampled_frames", 6))
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import boto3
+            self._client = boto3.client("bedrock-runtime", region_name=self.region)
+        return self._client
+
+    def invoke(self, clip_record, prompt):
+        sampled = _sample_frames(clip_record["frames"], self.sampled_frames)
+
+        content = []
+        for frame in sampled:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            success, buf = cv2.imencode(".jpg", rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not success:
+                continue
+            content.append({
+                "image": {
+                    "format": "jpeg",
+                    "source": {"bytes": buf.tobytes()},
+                }
+            })
+        content.append({"text": prompt})
+
+        response = self._get_client().converse(
+            modelId=self.model_id,
+            messages=[{"role": "user", "content": content}],
+            inferenceConfig={"maxTokens": self.max_tokens, "temperature": 0.0},
+        )
+        return response["output"]["message"]["content"][0]["text"]
+
+
 class VLMRefiner:
     def __init__(self, config):
         self.provider_name = str(config.get("provider", "mock")).lower()
@@ -241,8 +307,33 @@ class VLMRefiner:
             self.provider = MockVLMProvider()
         elif self.provider_name == "internvl":
             self.provider = InternVLVLMProvider(config)
+        elif self.provider_name == "bedrock":
+            self.provider = BedrockVLMProvider(config)
         else:
             raise ValueError(f"unsupported VLM provider: {self.provider_name}")
+
+    def score_event(self, event_frames, event_meta=None):
+        """Score an entire event window as a single VLM call (event-level VLM)."""
+        meta = event_meta or {}
+        duration_sec = float(meta.get("duration_sec", 0.0))
+        prompt = build_event_fight_prompt(num_frames=len(event_frames), duration_sec=duration_sec)
+        event_record = {
+            "frames": event_frames,
+            "fighting_prob": float(meta.get("peak_score", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": f"event duration {duration_sec:.1f}s",
+        }
+        raw = self.provider.invoke(event_record, prompt)
+        parsed = parse_vlm_response(raw)
+        label = parsed.get("label", "non_fight")
+        confidence = float(parsed.get("confidence", 0.5))
+        score = confidence if label == "fight" else 1.0 - confidence
+        return {
+            "prompt": prompt,
+            "raw_response": raw,
+            "parsed": parsed,
+            "score": max(0.0, min(1.0, score)),
+        }
 
     def score_clip(self, clip_record):
         prompt = build_binary_fight_prompt(

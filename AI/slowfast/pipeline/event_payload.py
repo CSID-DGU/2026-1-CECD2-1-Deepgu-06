@@ -177,9 +177,9 @@ def _build_routing_info(config, event, score_by_clip):
     return {
         "selected_for_vlm": vlm_call_count > 0,
         "executed_vlm_calls": vlm_call_count,
-        "router_prob_low": float(config["router"].get("prob_low", 0.0)),
-        "router_prob_high": float(config["router"].get("prob_high", 1.0)),
-        "uncertainty_threshold": float(config["router"].get("uncertainty_threshold", 0.0)),
+        "router_prob_low": float(config.get("router", {}).get("prob_low", 0.0)),
+        "router_prob_high": float(config.get("router", {}).get("prob_high", 1.0)),
+        "uncertainty_threshold": float(config.get("router", {}).get("uncertainty_threshold", 0.0)),
     }
 
 

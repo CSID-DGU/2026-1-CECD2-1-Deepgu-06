@@ -111,10 +111,14 @@ def build_events(scored_clips, thresholds, fps):
     end_score = float(thresholds["end_score"])
     min_event_duration_sec = float(thresholds.get("min_event_duration_sec", 0.0))
 
+    # clip_id → frame bounds 매핑 (peak clip 위치 추적용)
+    clip_bounds = {int(r["clip_id"]): (int(r["start_frame"]), int(r["end_frame"])) for r in ordered}
+
     events = []
     current = None
     for result in ordered:
         score = float(result["final_score"])
+        clip_id = int(result["clip_id"])
         if current is None:
             if score >= start_score:
                 current = {
@@ -122,18 +126,21 @@ def build_events(scored_clips, thresholds, fps):
                     "label": "fight",
                     "start_frame": int(result["start_frame"]),
                     "end_frame": int(result["end_frame"]),
-                    "clip_ids": [int(result["clip_id"])],
+                    "clip_ids": [clip_id],
                     "peak_score": score,
+                    "peak_clip_id": clip_id,
                     "confidence": score,
                 }
             continue
 
         previous_clip_id = current["clip_ids"][-1]
-        is_contiguous = int(result["clip_id"]) == previous_clip_id + 1
+        is_contiguous = clip_id == previous_clip_id + 1
         if score >= end_score and is_contiguous:
             current["end_frame"] = int(result["end_frame"])
-            current["clip_ids"].append(int(result["clip_id"]))
-            current["peak_score"] = max(current["peak_score"], score)
+            current["clip_ids"].append(clip_id)
+            if score > current["peak_score"]:
+                current["peak_score"] = score
+                current["peak_clip_id"] = clip_id
             current["confidence"] = current["peak_score"]
             continue
 
@@ -145,8 +152,9 @@ def build_events(scored_clips, thresholds, fps):
                 "label": "fight",
                 "start_frame": int(result["start_frame"]),
                 "end_frame": int(result["end_frame"]),
-                "clip_ids": [int(result["clip_id"])],
+                "clip_ids": [clip_id],
                 "peak_score": score,
+                "peak_clip_id": clip_id,
                 "confidence": score,
             }
 
