@@ -1,0 +1,47 @@
+project:
+  output_root: /home/deepgu/slowfast/outputs/train
+
+clip:
+  temporal_window_sec: 2.0
+  stride_sec: 1.0
+  sampled_frames: 13
+  resize:
+    width: 160
+    height: 160
+  sampling: uniform
+
+fast_model:
+  device: auto
+  architecture: x3d_s
+  num_classes: 1
+  input_clip_length: 13
+  input_crop_size: 160
+  batch_size: 8
+  use_pretrained_backbone: false
+  amp: true
+  use_pos_weight: true
+
+data_loader:
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+
+train:
+  train_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s_overlap051/training_clips.csv
+  val_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s_overlap051/validation_clips.csv
+
+loss:
+  type: bce
+  gamma: 2.0
+  alpha: null
+
+early_stopping:
+  enabled: true
+  monitor: pr_auc
+  patience: 5
+  min_delta: 0.0005
+
+sampler:
+  enabled: false
+  weights_csv: null
+  default_weight: 1.0
