@@ -1,5 +1,5 @@
 project:
-  output_root: /home/deepgu/slowfast/outputs/runs
+  output_root: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/outputs/runs
 
 clip:
   temporal_window_sec: 2.0
@@ -13,7 +13,7 @@ clip:
 fast_model:
   device: auto
   architecture: x3d_s
-  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap030_focal/x3d_s_fast_model_best.pt
+  checkpoint_path: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/models/fast/checkpoints/overlap030_focal/x3d_s_fast_model_best.pt
   num_classes: 1
   input_clip_length: 13
   input_crop_size: 160
@@ -29,8 +29,8 @@ data_loader:
   persistent_workers: true
 
 train:
-  train_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s/training_clips.csv
-  val_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s/validation_clips.csv
+  train_csv: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/data/manifests/cctv_x3d_s/training_clips.csv
+  val_csv: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/data/manifests/cctv_x3d_s/validation_clips.csv
 
 loss:
   type: bce
