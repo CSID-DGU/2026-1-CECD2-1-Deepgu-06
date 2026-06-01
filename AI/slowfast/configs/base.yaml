@@ -1,5 +1,5 @@
 project:
-  output_root: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/outputs/runs
+  output_root: /home/deepgu/slowfast/outputs/runs
 
 clip:
   temporal_window_sec: 2.0
@@ -13,7 +13,7 @@ clip:
 fast_model:
   device: auto
   architecture: x3d_s
-  checkpoint_path: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/models/fast/checkpoints/early_stop_pr_auc/x3d_s_fast_model_best.pt
+  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap030_focal/x3d_s_fast_model_best.pt
   num_classes: 1
   input_clip_length: 13
   input_crop_size: 160
@@ -29,8 +29,8 @@ data_loader:
   persistent_workers: true
 
 train:
-  train_csv: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/data/manifests/cctv_x3d_s/training_clips.csv
-  val_csv: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/data/manifests/cctv_x3d_s/validation_clips.csv
+  train_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s/training_clips.csv
+  val_csv: /home/deepgu/slowfast/data/manifests/cctv_x3d_s/validation_clips.csv
 
 loss:
   type: bce
@@ -90,12 +90,12 @@ fusion:
     protect_floor_score: 0.36
 
 thresholds:
-  start_score: 0.47
-  end_score: 0.42
+  start_score: 0.48
+  end_score: 0.36
   min_event_duration_sec: 0.5
   split:
     enabled: true
-    score_threshold: 0.33
+    score_threshold: 0.40
     min_consecutive_clips: 2
   score_smoothing:
     enabled: true
