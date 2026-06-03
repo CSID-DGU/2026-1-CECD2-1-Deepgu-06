@@ -259,6 +259,122 @@ def _sample_frames(frames: List[np.ndarray], count: int) -> List[np.ndarray]:
     return [frames[i] for i in chosen]
 
 
+class Phi35VisionProvider:
+    """Phi-3.5-Vision provider (microsoft/Phi-3.5-vision-instruct).
+
+    AutoModelForCausalLM + AutoProcessor. 멀티이미지는 <|image_1|> 태그로 삽입.
+    """
+
+    def __init__(self, config):
+        from transformers import AutoModelForCausalLM, AutoProcessor
+
+        self.model_path = str(config.get("model_path", "microsoft/Phi-3.5-vision-instruct"))
+        self.max_new_tokens = int(config.get("max_new_tokens", 128))
+        device = str(config.get("device", "cuda:1"))
+        device_map = "auto" if device == "auto" else {"": device}
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+            device_map=device_map,
+            _attn_implementation="eager",
+        ).eval()
+
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_path,
+            trust_remote_code=True,
+            num_crops=4,
+        )
+
+    def invoke(self, clip_record, prompt):
+        from PIL import Image as _PIL
+
+        frames = clip_record["frames"]
+        pil_images = []
+        for frame in frames:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_images.append(_PIL.fromarray(rgb))
+
+        # Phi-3.5-Vision: 이미지는 <|image_N|> 태그로 참조
+        image_tags = "".join(f"<|image_{i+1}|>\n" for i in range(len(pil_images)))
+        user_content = image_tags + prompt
+        messages = [
+            {"role": "user", "content": user_content},
+        ]
+
+        prompt_text = self.processor.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        inputs = self.processor(
+            prompt_text,
+            pil_images,
+            return_tensors="pt",
+        )
+        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+
+        with torch.inference_mode():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=False,
+                eos_token_id=self.processor.tokenizer.eos_token_id,
+            )
+
+        trimmed = output_ids[0][inputs["input_ids"].shape[1]:]
+        return self.processor.decode(trimmed, skip_special_tokens=True)
+
+
+class MiniCPMVProvider:
+    """MiniCPM-V 2.6 provider.
+
+    AutoModel + trust_remote_code 방식. 멀티이미지는 content 리스트로 전달.
+    """
+
+    def __init__(self, config):
+        from transformers import AutoTokenizer, AutoModel
+
+        self.model_path = str(config.get("model_path", "openbmb/MiniCPM-V-2_6"))
+        self.max_new_tokens = int(config.get("max_new_tokens", 128))
+        device = str(config.get("device", "cuda:1"))
+        device_map = "auto" if device == "auto" else {"": device}
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_path, trust_remote_code=True
+        )
+        self.model = AutoModel.from_pretrained(
+            self.model_path,
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            device_map=device_map,
+        ).eval()
+
+    def invoke(self, clip_record, prompt):
+        from PIL import Image as _PIL
+
+        frames = clip_record["frames"]
+        pil_images = []
+        for frame in frames:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_images.append(_PIL.fromarray(rgb))
+
+        # MiniCPM-V: content 리스트에 image/text 교차 입력
+        content = [{"type": "image", "image": img} for img in pil_images]
+        content.append({"type": "text", "text": prompt})
+
+        msgs = [{"role": "user", "content": content}]
+
+        with torch.inference_mode():
+            response = self.model.chat(
+                image=None,
+                msgs=msgs,
+                tokenizer=self.tokenizer,
+                max_new_tokens=self.max_new_tokens,
+                sampling=False,
+            )
+        return response if isinstance(response, str) else str(response)
+
+
 class Qwen2VLProvider:
     """Qwen2-VL 계열 provider. keyframe/models/vlm/inference.py Qwen2VL을 SlowFast provider 인터페이스로 포팅."""
 
@@ -269,11 +385,13 @@ class Qwen2VLProvider:
         self.max_new_tokens = int(config.get("max_new_tokens", 128))
         self.min_pixels = int(config.get("min_pixels", 256 * 28 * 28))
         self.max_pixels = int(config.get("max_pixels", 1280 * 28 * 28))
+        device = str(config.get("device", "cuda:1"))
+        device_map = "auto" if device == "auto" else {"": device}
 
         self.model = Qwen2VLForConditionalGeneration.from_pretrained(
             self.model_path,
             torch_dtype=torch.bfloat16,
-            device_map="auto",
+            device_map=device_map,
         ).eval()
 
         self.processor = AutoProcessor.from_pretrained(
@@ -378,6 +496,10 @@ class VLMRefiner:
             self.provider = BedrockVLMProvider(config)
         elif self.provider_name == "qwen2vl":
             self.provider = Qwen2VLProvider(config)
+        elif self.provider_name == "minicpmv":
+            self.provider = MiniCPMVProvider(config)
+        elif self.provider_name == "phi35vision":
+            self.provider = Phi35VisionProvider(config)
         else:
             raise ValueError(f"unsupported VLM provider: {self.provider_name}")
 
