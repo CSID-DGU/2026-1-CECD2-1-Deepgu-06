@@ -13,7 +13,7 @@ clip:
 fast_model:
   device: auto
   architecture: x3d_s
-  checkpoint_path: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/models/fast/checkpoints/early_stop_pr_auc/x3d_s_fast_model_best.pt
+  checkpoint_path: /home/deepgu/2026-1-CECD2-1-Deepgu-06/AI/slowfast/models/fast/checkpoints/overlap030_focal/x3d_s_fast_model_best.pt
   num_classes: 1
   input_clip_length: 13
   input_crop_size: 160
@@ -100,12 +100,12 @@ fusion:
     protect_floor_score: 0.36
 
 thresholds:
-  start_score: 0.47
-  end_score: 0.42
+  start_score: 0.48
+  end_score: 0.36
   min_event_duration_sec: 0.5
   split:
     enabled: true
-    score_threshold: 0.33
+    score_threshold: 0.40
     min_consecutive_clips: 2
   score_smoothing:
     enabled: true
