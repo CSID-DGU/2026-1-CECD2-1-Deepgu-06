@@ -40,7 +40,7 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
     if verbose:
         print(f"[clips] generated={len(clips)}")
 
-    scored = score_clips_fast(clips, config["fast_model"], config["clip"])
+    scored = score_clips_fast(clips, config["fast_model"], config["clip"], return_features=True)
     router_cfg = config.get("router", {})
     scored = attach_uncertainty(
         scored,

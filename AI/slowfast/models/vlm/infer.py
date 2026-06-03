@@ -312,6 +312,42 @@ class VLMRefiner:
         else:
             raise ValueError(f"unsupported VLM provider: {self.provider_name}")
 
+        # BiGRU keyframe selector (옵션). keyframe_selector_path 설정 시 로드.
+        self._frame_scorer = None
+        selector_path = config.get("keyframe_selector_path")
+        if selector_path:
+            import sys
+            import torch
+            from pathlib import Path
+            keyframe_root = Path(__file__).resolve().parents[3] / "keyframe"
+            if str(keyframe_root) not in sys.path:
+                sys.path.insert(0, str(keyframe_root))
+            from models.frame_selector import FrameScorer
+            scorer = FrameScorer(input_dim=192)
+            scorer.load_state_dict(torch.load(selector_path, map_location="cpu"))
+            scorer.eval()
+            self._frame_scorer = scorer
+
+    def _select_frames(self, clip_record):
+        """BiGRU가 로드돼 있고 x3d_features가 있으면 BiGRU로 선택, 아니면 균등 샘플링 fallback."""
+        x3d_features = clip_record.get("x3d_features")
+        if self._frame_scorer is not None and x3d_features is not None:
+            import torch
+            import numpy as np
+            feat = torch.FloatTensor(x3d_features)        # (T'=13, 192)
+            with torch.no_grad():
+                scores = self._frame_scorer(feat)         # (T',)
+            n = min(self.sampled_frames, feat.shape[0])
+            top_idx = sorted(torch.topk(scores, k=n).indices.cpu().numpy().tolist())
+            # x3d_features의 T'개 위치는 원본 frames에서 균등 샘플한 것과 동일.
+            # 같은 방식으로 재샘플해 매핑.
+            raw_frames = clip_record["frames"]
+            T_raw, T_feat = len(raw_frames), x3d_features.shape[0]
+            positions = [int(round(i)) for i in np.linspace(0, T_raw - 1, T_feat)]
+            return [raw_frames[positions[i]] for i in top_idx]
+        # fallback: provider 내부 균등 샘플링
+        return self.provider._sample_frames(clip_record["frames"])
+
     def score_event(self, event_frames, event_meta=None):
         """Score an entire event window as a single VLM call (event-level VLM)."""
         meta = event_meta or {}
@@ -336,11 +372,15 @@ class VLMRefiner:
         }
 
     def score_clip(self, clip_record):
+        frames = self._select_frames(clip_record)
         prompt = build_binary_fight_prompt(
             clip_record["motion_summary"],
-            num_frames=min(self.sampled_frames, len(clip_record.get("frames", []))),
+            num_frames=len(frames),
         )
-        raw = self.provider.invoke(clip_record, prompt)
+        # 이미 선택된 frames를 provider에 전달 (원본 dict 변경 방지)
+        record_for_provider = dict(clip_record)
+        record_for_provider["frames"] = frames
+        raw = self.provider.invoke(record_for_provider, prompt)
         parsed = parse_vlm_response(raw)
         label = parsed.get("label", "non_fight")
         confidence = float(parsed.get("confidence", 0.5))
