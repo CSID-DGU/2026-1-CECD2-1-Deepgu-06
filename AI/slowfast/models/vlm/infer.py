@@ -392,7 +392,16 @@ class VLMRefiner:
             if str(keyframe_root) not in sys.path:
                 sys.path.insert(0, str(keyframe_root))
             from models.frame_selector import FrameScorer
-            from models.resnet_extractor import ResNetFrameFeatureExtractor
+            # resnet_extractor는 slowfast/models/ 에 있으므로 직접 경로로 로드
+            slowfast_models = str(Path(__file__).resolve().parents[1])
+            import importlib.util as _ilu
+            _spec = _ilu.spec_from_file_location(
+                "resnet_extractor",
+                str(Path(__file__).resolve().parents[1] / "resnet_extractor.py"),
+            )
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            ResNetFrameFeatureExtractor = _mod.ResNetFrameFeatureExtractor
 
             input_dim = int(config.get("keyframe_selector_input_dim", 2048))
             selector_device = str(config.get("keyframe_selector_device", "cpu"))
