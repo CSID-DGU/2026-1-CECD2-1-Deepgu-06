@@ -59,10 +59,20 @@ router:
   variance_window: 5
 
 vlm:
-  provider: internvl
+  provider: internvl            # internvl | qwen2vl | bedrock | mock
+  level: event                  # clip | event
   sampled_frames: 6
   prompt_style: binary_fight
   enabled: true
+  # per-clip keyframe selector (null이면 균등 샘플링 fallback)
+  keyframe_selector_path: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/ai_pipeline/outputs/frame_selector.pth
+  keyframe_selector_input_dim: 2048   # ResNet-50 기반 checkpoint
+  keyframe_selector_device: cuda:1    # ResNet+BiGRU 디바이스
+  resnet_batch_size: 16
+  frames_per_clip: 6            # BiGRU가 clip당 선택할 프레임 수 (VLM별 조정)
+  max_clips_per_event: 3        # event당 VLM 호출할 최대 clip 수
+  peak_score_max: 0.85          # 이 이상이면 VLM 없이 accept
+  sampled_frames_per_event: 8   # fallback용 (clip_lookup 없을 때)
   repo_path: /home/deepgu/VERA/InternVL/internvl_chat
   model_path: /home/deepgu/.cache/huggingface/hub/models--OpenGVLab--InternVL2-8B/snapshots/6fb9ad6924f69424e57fab2ab061d707688f0296
   local_files_only: true
