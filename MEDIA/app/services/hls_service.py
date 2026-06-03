@@ -155,4 +155,5 @@ def monitor_processes() -> None:
                 if camera_id in _registry:
                     _registry[camera_id]["last_status"] = new_status
 
+            print(f"[METRIC] stream_status_change camera={camera_id} status={new_status} ts={time.time():.3f}")
             send_callback(entry["callback_url"], camera_id, new_status, entry["hls_url"])

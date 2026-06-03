@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -33,6 +34,7 @@ def stream_callback(
                 message="invalid callback secret",
             )
 
+    print(f"[METRIC] callback_received camera={payload.camera_id} status={payload.status} ts={time.time():.3f}")
     service = StreamService(db)
     service.handle_callback(payload)
     return {"success": True}
@@ -66,8 +68,10 @@ async def create_event(
         description=description,
     )
 
+    t_recv = time.time()
     video_bytes = await video.read() if video else None
     event = EventService.create(db, payload, video_bytes)
+    print(f"[METRIC] event_received camera={camera_id} confidence={confidence:.3f} ts={t_recv:.3f}")
     await broadcast_event(camera_id, {
         "camera_id": camera_id,
         "anomaly_type": anomaly_type,
@@ -171,12 +175,15 @@ async def create_event_payloads(
             video_bytes=video_bytes,
             thumbnail_bytes_list=thumbnail_bytes_list,
         )
+        t_broadcast = time.time()
         await broadcast_event(str(camera_id), {
             "camera_id": str(camera_id),
             "anomaly_type": str(event_data.get("label") or "fight"),
             "confidence": float(event_data.get("confidence") or 0.0),
             "detected_at": detected_at.isoformat(),
+            "_ts": t_broadcast,
         })
+        print(f"[METRIC] event_payload_received camera={camera_id} confidence={event_data.get('confidence', 0):.3f} ts={t_broadcast:.3f}")
         created.append(
             {
                 "db_event": EventItem.model_validate(created_event).model_dump(),
