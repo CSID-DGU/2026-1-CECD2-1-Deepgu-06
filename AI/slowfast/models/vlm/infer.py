@@ -9,6 +9,7 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
+import torch
 
 from models.vlm.parser import parse_vlm_response
 from models.vlm.prompts import build_binary_fight_prompt, build_event_fight_prompt
@@ -387,6 +388,7 @@ class VLMRefiner:
         selector_path = config.get("keyframe_selector_path")
         if selector_path:
             import sys
+            import torch
             from pathlib import Path
             keyframe_root = Path(__file__).resolve().parents[3] / "keyframe"
             if str(keyframe_root) not in sys.path:
