@@ -258,6 +258,72 @@ def _sample_frames(frames: List[np.ndarray], count: int) -> List[np.ndarray]:
     return [frames[i] for i in chosen]
 
 
+class Qwen2VLProvider:
+    """Qwen2-VL 계열 provider. keyframe/models/vlm/inference.py Qwen2VL을 SlowFast provider 인터페이스로 포팅."""
+
+    def __init__(self, config):
+        from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+
+        self.model_path = str(config.get("model_path", "Qwen/Qwen2-VL-7B-Instruct"))
+        self.max_new_tokens = int(config.get("max_new_tokens", 128))
+        self.min_pixels = int(config.get("min_pixels", 256 * 28 * 28))
+        self.max_pixels = int(config.get("max_pixels", 1280 * 28 * 28))
+
+        self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        ).eval()
+
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_path,
+            min_pixels=self.min_pixels,
+            max_pixels=self.max_pixels,
+        )
+
+        try:
+            from qwen_vl_utils import process_vision_info as _pvi
+            self._process_vision_info = _pvi
+        except ImportError:
+            self._process_vision_info = None
+
+    def invoke(self, clip_record, prompt):
+        from PIL import Image as _PIL
+
+        frames = clip_record["frames"]
+        pil_images = []
+        for frame in frames:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = _PIL.fromarray(rgb)
+            w, h = img.size
+            if min(w, h) < 448:
+                scale = 448 / min(w, h)
+                img = img.resize((int(w * scale), int(h * scale)), _PIL.LANCZOS)
+            pil_images.append(img)
+
+        messages = [{"role": "user", "content": [
+            *[{"type": "image", "image": img} for img in pil_images],
+            {"type": "text", "text": prompt},
+        ]}]
+
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        if self._process_vision_info is not None:
+            image_inputs, _ = self._process_vision_info(messages)
+            inputs = self.processor(text=[text], images=image_inputs, padding=True, return_tensors="pt")
+        else:
+            inputs = self.processor(text=[text], images=pil_images, padding=True, return_tensors="pt")
+
+        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+
+        with torch.inference_mode():
+            output_ids = self.model.generate(
+                **inputs, max_new_tokens=self.max_new_tokens, do_sample=False
+            )
+
+        trimmed = output_ids[0][len(inputs["input_ids"][0]):]
+        return self.processor.decode(trimmed, skip_special_tokens=True)
+
+
 class BedrockVLMProvider:
     def __init__(self, config):
         self.model_id = str(config.get("model_id", "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
@@ -309,44 +375,88 @@ class VLMRefiner:
             self.provider = InternVLVLMProvider(config)
         elif self.provider_name == "bedrock":
             self.provider = BedrockVLMProvider(config)
+        elif self.provider_name == "qwen2vl":
+            self.provider = Qwen2VLProvider(config)
         else:
             raise ValueError(f"unsupported VLM provider: {self.provider_name}")
 
-        # BiGRU keyframe selector (옵션). keyframe_selector_path 설정 시 로드.
+        # ResNet-50 + BiGRU keyframe selector (옵션). keyframe_selector_path 설정 시 로드.
+        self._resnet = None
         self._frame_scorer = None
+        self._scorer_device = "cpu"
         selector_path = config.get("keyframe_selector_path")
         if selector_path:
             import sys
-            import torch
             from pathlib import Path
             keyframe_root = Path(__file__).resolve().parents[3] / "keyframe"
             if str(keyframe_root) not in sys.path:
                 sys.path.insert(0, str(keyframe_root))
             from models.frame_selector import FrameScorer
-            scorer = FrameScorer(input_dim=192)
+            from models.resnet_extractor import ResNetFrameFeatureExtractor
+
+            input_dim = int(config.get("keyframe_selector_input_dim", 2048))
+            selector_device = str(config.get("keyframe_selector_device", "cpu"))
+            resnet_batch = int(config.get("resnet_batch_size", 16))
+
+            scorer = FrameScorer(input_dim=input_dim)
             scorer.load_state_dict(torch.load(selector_path, map_location="cpu"))
             scorer.eval()
+            scorer.to(selector_device)
             self._frame_scorer = scorer
+            self._scorer_device = selector_device
+            self._resnet = ResNetFrameFeatureExtractor(device=selector_device, batch_size=resnet_batch)
+            print(f"[VLMRefiner] keyframe selector 로드: {selector_path} (input_dim={input_dim}, device={selector_device})")
 
     def _select_frames(self, clip_record):
-        """BiGRU가 로드돼 있고 x3d_features가 있으면 BiGRU로 선택, 아니면 균등 샘플링 fallback."""
+        """clip-level VLM 경로용. x3d_features 기반 선택 또는 균등 샘플링 fallback."""
         x3d_features = clip_record.get("x3d_features")
         if self._frame_scorer is not None and x3d_features is not None:
-            import torch
-            import numpy as np
-            feat = torch.FloatTensor(x3d_features)        # (T'=13, 192)
+            feat = torch.FloatTensor(x3d_features).to(self._scorer_device)
             with torch.no_grad():
-                scores = self._frame_scorer(feat)         # (T',)
+                scores = self._frame_scorer(feat)
             n = min(self.sampled_frames, feat.shape[0])
             top_idx = sorted(torch.topk(scores, k=n).indices.cpu().numpy().tolist())
-            # x3d_features의 T'개 위치는 원본 frames에서 균등 샘플한 것과 동일.
-            # 같은 방식으로 재샘플해 매핑.
             raw_frames = clip_record["frames"]
             T_raw, T_feat = len(raw_frames), x3d_features.shape[0]
             positions = [int(round(i)) for i in np.linspace(0, T_raw - 1, T_feat)]
             return [raw_frames[positions[i]] for i in top_idx]
-        # fallback: provider 내부 균등 샘플링
-        return self.provider._sample_frames(clip_record["frames"])
+        return _sample_frames(clip_record["frames"], self.sampled_frames)
+
+    def score_clip_frames(self, frames_bgr, n_frames=6, meta=None):
+        """ResNet-50 → BiGRU → VLM. event-level per-clip 호출용.
+
+        keyframe selector 없으면 균등 샘플링 fallback.
+        """
+        if self._resnet is not None and self._frame_scorer is not None:
+            features = self._resnet.extract(frames_bgr)                      # (T, 2048)
+            feat_t = torch.FloatTensor(features).to(self._scorer_device)
+            with torch.no_grad():
+                scores = self._frame_scorer(feat_t)                           # (T,)
+            n = min(n_frames, len(frames_bgr))
+            top_idx = sorted(torch.topk(scores, k=n).indices.cpu().tolist())
+            selected = [frames_bgr[i] for i in top_idx]
+        else:
+            selected = _sample_frames(frames_bgr, n_frames)
+
+        meta = meta or {}
+        duration_sec = float(meta.get("duration_sec", 2.0))
+        prompt = build_event_fight_prompt(num_frames=len(selected), duration_sec=duration_sec)
+        record = {
+            "frames": selected,
+            "fighting_prob": float(meta.get("fighting_prob", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": "",
+        }
+        raw = self.provider.invoke(record, prompt)
+        parsed = parse_vlm_response(raw)
+        label = parsed.get("label", "non_fight")
+        confidence = float(parsed.get("confidence", 0.5))
+        score = confidence if label == "fight" else 1.0 - confidence
+        return {
+            "score": max(0.0, min(1.0, score)),
+            "parsed": parsed,
+            "raw_response": raw,
+        }
 
     def score_event(self, event_frames, event_meta=None):
         """Score an entire event window as a single VLM call (event-level VLM)."""
