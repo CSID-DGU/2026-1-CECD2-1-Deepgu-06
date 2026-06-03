@@ -92,6 +92,7 @@ def filter_events_by_vlm(
     all_frames: list,
     fps: float,
     vlm_config: Dict[str, Any],
+    clip_lookup: Dict[int, Any] = None,
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], int]:
     """
     Returns (kept_events, rejected_events, vlm_call_count).
@@ -106,6 +107,8 @@ def filter_events_by_vlm(
     n_frames = int(vlm_config.get("sampled_frames_per_event", 8))
     peak_margin_sec = float(vlm_config.get("peak_margin_sec", 4.0))
     max_calls = int(vlm_config.get("max_calls_per_video", 9999))
+    frames_per_clip = int(vlm_config.get("frames_per_clip", 6))
+    max_clips_per_event = int(vlm_config.get("max_clips_per_event", 3))
 
     refiner = VLMRefiner(vlm_config)
     kept = []
@@ -136,22 +139,75 @@ def filter_events_by_vlm(
             continue
 
         # 이벤트 프레임 추출 후 VLM 호출
-        event_frames = extract_event_frames(all_frames, event, n_frames, fps=fps,
-                                            peak_margin_sec=peak_margin_sec)
-        if not event_frames:
-            event["vlm_called"] = False
-            event["vlm_decision"] = "uncertain"
-            event["vlm_score"] = None
-            if uncertain_action != "discard":
-                kept.append(event)
-            else:
-                rejected.append(event)
-            continue
+        if clip_lookup is not None:
+            # per-clip 방식: fast_score 상위 clip 선택 → 각 clip에 ResNet+BiGRU → VLM
+            clip_ids = [int(cid) for cid in event.get("clip_ids", [])]
+            clips = [
+                clip_lookup[cid] for cid in clip_ids
+                if cid in clip_lookup and clip_lookup[cid].get("frames")
+            ]
+            top_clips = sorted(clips, key=lambda x: x["fighting_prob"], reverse=True)
+            top_clips = top_clips[:max_clips_per_event]
 
-        result = refiner.score_event(event_frames, event_meta=event)
-        vlm_call_count += 1
+            if not top_clips:
+                event["vlm_called"] = False
+                event["vlm_decision"] = "uncertain"
+                event["vlm_score"] = None
+                event["vlm_clip_scores"] = []
+                if uncertain_action != "discard":
+                    kept.append(event)
+                else:
+                    rejected.append(event)
+                continue
 
-        vlm_score = float(result["score"])
+            clip_scores = []
+            called_clip_ids = []
+            for clip in top_clips:
+                if vlm_call_count >= max_calls:
+                    break
+                result = refiner.score_clip_frames(
+                    clip["frames"],
+                    n_frames=frames_per_clip,
+                    meta={
+                        "fighting_prob": clip["fighting_prob"],
+                        "duration_sec": 2.0,
+                    },
+                )
+                clip_scores.append(float(result["score"]))
+                called_clip_ids.append(clip.get("clip_id"))
+                vlm_call_count += 1
+
+            if not clip_scores:
+                event["vlm_called"] = False
+                event["vlm_decision"] = "uncertain"
+                event["vlm_score"] = None
+                event["vlm_clip_scores"] = []
+                if uncertain_action != "discard":
+                    kept.append(event)
+                else:
+                    rejected.append(event)
+                continue
+
+            vlm_score = max(clip_scores)
+            event["vlm_clip_scores"] = clip_scores
+            event["vlm_clips_called"] = called_clip_ids
+        else:
+            # fallback: 기존 event 전체 균등 샘플링
+            event_frames = extract_event_frames(all_frames, event, n_frames, fps=fps,
+                                                peak_margin_sec=peak_margin_sec)
+            if not event_frames:
+                event["vlm_called"] = False
+                event["vlm_decision"] = "uncertain"
+                event["vlm_score"] = None
+                if uncertain_action != "discard":
+                    kept.append(event)
+                else:
+                    rejected.append(event)
+                continue
+
+            result = refiner.score_event(event_frames, event_meta=event)
+            vlm_call_count += 1
+            vlm_score = float(result["score"])
         decision = _decide(vlm_score, accept_thr, reject_thr)
 
         event["vlm_called"] = True
