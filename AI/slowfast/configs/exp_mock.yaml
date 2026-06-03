@@ -1,0 +1,66 @@
+project:
+  output_root: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/slowfast/outputs/eval/keyframe_vlm/mock
+
+clip:
+  temporal_window_sec: 2.0
+  stride_sec: 1.0
+  sampled_frames: 13
+  resize:
+    width: 160
+    height: 160
+  sampling: uniform
+
+fast_model:
+  device: auto
+  architecture: x3d_s
+  checkpoint_path: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/slowfast/models/fast/checkpoints/x3d_s_fast_model_best.pt
+  num_classes: 1
+  input_clip_length: 13
+  input_crop_size: 160
+  batch_size: 8
+  use_pretrained_backbone: false
+  fallback_mode: heuristic
+  amp: true
+  use_pos_weight: true
+
+vlm:
+  provider: mock
+  level: event
+  enabled: true
+  frames_per_clip: 6
+  max_clips_per_event: 3
+  peak_score_max: 0.85
+  sampled_frames_per_event: 8
+  accept_threshold: 0.65
+  reject_threshold: 0.35
+  uncertain_action: keep
+  max_calls_per_video: 9999
+  keyframe_selector_path: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/ai_pipeline/outputs/frame_selector.pth
+  keyframe_selector_input_dim: 2048
+  keyframe_selector_device: cuda:1
+  resnet_batch_size: 16
+
+fusion:
+  fast_weight: 1.0
+  vlm_weight: 0.0
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: false
+
+thresholds:
+  start_score: 0.48
+  end_score: 0.36
+  min_event_duration_sec: 0.5
+  split:
+    enabled: true
+    score_threshold: 0.40
+    min_consecutive_clips: 2
+  score_smoothing:
+    enabled: true
+    window_size: 3
+    method: moving_average
+
+outputs:
+  save_run_artifacts: false
+  save_event_media: false
+  save_clip_manifest: false

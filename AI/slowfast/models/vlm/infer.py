@@ -103,29 +103,29 @@ class InternVLVLMProvider:
         import torchvision.transforms as T
         from PIL import Image
         from torchvision.transforms.functional import InterpolationMode
-        repo_root = Path(self.repo_path)
-        if not repo_root.exists():
-            raise RuntimeError(f"InternVL repo path does not exist: {self.repo_path}")
-        if str(repo_root) not in sys.path:
-            sys.path.insert(0, str(repo_root))
-
-        from internvl.model import load_model_and_tokenizer
-
-        loader_args = SimpleNamespace(
-            checkpoint=self.model_path,
-            auto=(self.device == "auto" and torch.cuda.device_count() > 1),
-            load_in_8bit=self.load_in_8bit,
-            load_in_4bit=self.load_in_4bit,
-        )
-        model, tokenizer = load_model_and_tokenizer(loader_args)
+        from transformers import AutoModel, AutoTokenizer
 
         dtype = self._resolve_torch_dtype(torch)
         resolved_device = self._resolve_device(torch)
-        move_pixel_values = not loader_args.auto and not self.load_in_8bit and not self.load_in_4bit
+        multi_gpu = self.device == "auto" and torch.cuda.device_count() > 1
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.model_path, trust_remote_code=True
+        )
+        model = AutoModel.from_pretrained(
+            self.model_path,
+            torch_dtype=dtype,
+            trust_remote_code=True,
+            load_in_8bit=self.load_in_8bit if not multi_gpu else False,
+            load_in_4bit=self.load_in_4bit if not multi_gpu else False,
+            device_map="auto" if multi_gpu else {"": resolved_device},
+        ).eval()
+
+        move_pixel_values = not multi_gpu and not self.load_in_8bit and not self.load_in_4bit
 
         image_size = int(
             getattr(model.config, "force_image_size", None)
-            or getattr(model.config.vision_config, "image_size", self.frame_image_size)
+            or getattr(getattr(model.config, "vision_config", None), "image_size", None)
             or self.frame_image_size
         )
 
