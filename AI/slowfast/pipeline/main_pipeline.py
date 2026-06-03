@@ -60,7 +60,17 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
         events, smoothed_scores = build_events(fused, config["thresholds"], fps=fps)
         if verbose:
             print(f"[events] candidates={len(events)}")
-        events, rejected_events, n_vlm_calls = filter_events_by_vlm(events, frames, fps, config["vlm"])
+        clip_lookup = {
+            int(item["clip_id"]): {
+                "clip_id": int(item["clip_id"]),
+                "frames": item.get("frames", []),
+                "fighting_prob": float(item["fighting_prob"]),
+            }
+            for item in scored
+        }
+        events, rejected_events, n_vlm_calls = filter_events_by_vlm(
+            events, frames, fps, config["vlm"], clip_lookup=clip_lookup
+        )
         vlm_outputs = {}
         if verbose:
             decisions = {}
