@@ -54,33 +54,62 @@ def build_gt_events(meta):
     return gt_events
 
 
-def evaluate_video(pred_events, gt_events, iou_threshold):
-    matched = set()
-    true_positive = 0
-    matched_predicted_duration_sec = 0.0
-    for event in pred_events:
-        for index, gt in enumerate(gt_events):
-            if index in matched:
-                continue
-            iou = interval_iou(
-                event["start_frame"],
-                event["end_frame"],
-                gt["start_frame"],
-                gt["end_frame"],
-            )
-            if iou >= iou_threshold:
-                true_positive += 1
-                matched.add(index)
-                matched_predicted_duration_sec += float(event.get("duration_sec", 0.0))
-                break
+def evaluate_video(pred_events, gt_events, iou_threshold, eval_mode="gt-centric"):
+    """
+    eval_mode="gt-centric" (기본):
+        GT 기준 평가. 각 GT에 대해 IoU >= threshold인 pred가 하나라도 있으면 TP.
+        하나의 pred가 여러 GT를 커버해도 모두 TP 인정.
+        TP = matched GT 수 (recall 기준)
+        FP = 어떤 GT와도 매칭되지 않는 pred 수 (precision 기준)
+        FN = 어떤 pred와도 매칭되지 않는 GT 수
+    eval_mode="greedy" (레거시):
+        pred 순회하며 첫 번째 매칭 GT에 소비. pred 1개 = GT 1개.
+    """
+    predicted_total_duration_sec = sum(float(e.get("duration_sec", 0.0)) for e in pred_events)
+    gt_total_duration_sec = sum(float(e.get("duration_sec", 0.0)) for e in gt_events)
 
-    false_positive = max(0, len(pred_events) - true_positive)
-    false_negative = max(0, len(gt_events) - true_positive)
-    precision = true_positive / max(1, true_positive + false_positive)
+    if eval_mode == "greedy":
+        matched = set()
+        true_positive = 0
+        matched_predicted_duration_sec = 0.0
+        for event in pred_events:
+            for index, gt in enumerate(gt_events):
+                if index in matched:
+                    continue
+                if interval_iou(event["start_frame"], event["end_frame"],
+                                gt["start_frame"], gt["end_frame"]) >= iou_threshold:
+                    true_positive += 1
+                    matched.add(index)
+                    matched_predicted_duration_sec += float(event.get("duration_sec", 0.0))
+                    break
+        false_positive = max(0, len(pred_events) - true_positive)
+        false_negative = max(0, len(gt_events) - true_positive)
+    else:
+        # GT-centric
+        matched_predicted_duration_sec = 0.0
+        # GT side: 각 GT가 임의의 pred와 매칭되는지
+        true_positive = 0
+        for gt in gt_events:
+            for pred in pred_events:
+                if interval_iou(pred["start_frame"], pred["end_frame"],
+                                gt["start_frame"], gt["end_frame"]) >= iou_threshold:
+                    true_positive += 1
+                    break
+        false_negative = max(0, len(gt_events) - true_positive)
+        # Pred side: 각 pred가 임의의 GT와 매칭되는지
+        tp_pred = 0
+        for pred in pred_events:
+            for gt in gt_events:
+                if interval_iou(pred["start_frame"], pred["end_frame"],
+                                gt["start_frame"], gt["end_frame"]) >= iou_threshold:
+                    tp_pred += 1
+                    matched_predicted_duration_sec += float(pred.get("duration_sec", 0.0))
+                    break
+        false_positive = max(0, len(pred_events) - tp_pred)
+
+    precision = (len(pred_events) - false_positive) / max(1, len(pred_events))
     recall = true_positive / max(1, true_positive + false_negative)
     f1 = 2 * precision * recall / max(precision + recall, 1e-12)
-    predicted_total_duration_sec = sum(float(event.get("duration_sec", 0.0)) for event in pred_events)
-    gt_total_duration_sec = sum(float(event.get("duration_sec", 0.0)) for event in gt_events)
     return {
         "true_positive": true_positive,
         "false_positive": false_positive,
@@ -101,7 +130,12 @@ def summarize(per_video):
     tp = sum(int(item["true_positive"]) for item in per_video)
     fp = sum(int(item["false_positive"]) for item in per_video)
     fn = sum(int(item["false_negative"]) for item in per_video)
-    precision = tp / max(1, tp + fp)
+    n_preds = sum(int(item["predicted_event_count"]) for item in per_video)
+    # precision = 매칭된 pred 수(tp_pred) / 전체 pred 수.  tp_pred = n_preds - fp.
+    # (gt-centric: tp(GT측)와 tp_pred(pred측)는 다르므로 precision 분자는 tp_pred를 사용.
+    #  greedy 모드에서는 tp_pred == tp 이므로 동일 식이 성립.)
+    tp_pred = max(0, n_preds - fp)
+    precision = tp_pred / max(1, n_preds)
     recall = tp / max(1, tp + fn)
     f1 = 2 * precision * recall / max(precision + recall, 1e-12)
     predicted_total_duration_sec = sum(float(item["predicted_total_duration_sec"]) for item in per_video)
@@ -109,6 +143,8 @@ def summarize(per_video):
     return {
         "video_count": len(per_video),
         "true_positive": tp,
+        "matched_pred_count": tp_pred,
+        "predicted_event_count": n_preds,
         "false_positive": fp,
         "false_negative": fn,
         "event_precision": precision,
@@ -130,6 +166,8 @@ def main():
     parser.add_argument("--subset", default="testing")
     parser.add_argument("--source-filter", default="CCTV")
     parser.add_argument("--iou-threshold", type=float, default=0.1)
+    parser.add_argument("--eval-mode", default="gt-centric", choices=["gt-centric", "greedy"],
+                        help="gt-centric: 각 GT를 독립 평가 (기본). greedy: pred 순회 greedy 매칭 (레거시).")
     parser.add_argument("--run-prefix", default="event_eval")
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--limit", type=int, default=None)
@@ -166,7 +204,9 @@ def main():
         run_name = f"{args.run_prefix}_{video_id}"
         result = run_single_video_pipeline(str(video_path), deepcopy(config), run_name=run_name, verbose=False)
         gt_events = build_gt_events(meta)
-        metrics = evaluate_video(result["events"], gt_events, iou_threshold=float(args.iou_threshold))
+        metrics = evaluate_video(result["events"], gt_events,
+                                 iou_threshold=float(args.iou_threshold),
+                                 eval_mode=args.eval_mode)
         metrics["video_id"] = video_id
         if result.get("output_dir") is not None:
             metrics["output_dir"] = result["output_dir"]
@@ -188,6 +228,7 @@ def main():
         "subset": args.subset,
         "source_filter": args.source_filter,
         "iou_threshold": float(args.iou_threshold),
+        "eval_mode": args.eval_mode,
         "summary_only": bool(args.summary_only),
         "summary": summary,
         "per_video": per_video,
