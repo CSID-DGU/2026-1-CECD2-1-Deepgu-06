@@ -3,15 +3,18 @@ import re
 
 
 LABEL_ALIASES = {
-    "anomaly": "uncertain",
-    "violent": "fight",
-    "violence": "fight",
-    "fighting": "fight",
-    "attack": "fight",
-    "falling": "fall"
+    "fight": "anomaly",
+    "violent": "anomaly",
+    "violence": "anomaly",
+    "fighting": "anomaly",
+    "attack": "anomaly",
+    "abuse": "anomaly",
+    "assault": "anomaly",
+    "falling": "anomaly",
+    "fall": "anomaly",
 }
 
-VALID_LABELS = {"fight", "fall", "normal", "uncertain"}
+VALID_LABELS = {"anomaly", "normal", "uncertain"}
 
 
 def parse_vlm_output(output):
