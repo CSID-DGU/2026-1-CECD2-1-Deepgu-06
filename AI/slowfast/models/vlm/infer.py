@@ -443,6 +443,69 @@ class Qwen2VLProvider:
         return self.processor.decode(trimmed, skip_special_tokens=True)
 
 
+class Qwen3VLProvider:
+    """Qwen3-VL 계열 provider. AutoModel + trust_remote_code 방식."""
+
+    def __init__(self, config):
+        from transformers import AutoModel, AutoProcessor
+
+        self.model_path = str(config.get("model_path", "Qwen/Qwen3-VL-8B-Instruct"))
+        self.max_new_tokens = int(config.get("max_new_tokens", 128))
+        self.min_pixels = int(config.get("min_pixels", 256 * 28 * 28))
+        self.max_pixels = int(config.get("max_pixels", 1280 * 28 * 28))
+        device = str(config.get("device", "cuda:1"))
+        device_map = "auto" if device == "auto" else {"": device}
+
+        self.model = AutoModel.from_pretrained(
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map=device_map,
+            trust_remote_code=True,
+        ).eval()
+
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_path,
+            min_pixels=self.min_pixels,
+            max_pixels=self.max_pixels,
+            trust_remote_code=True,
+        )
+
+        try:
+            from qwen_vl_utils import process_vision_info as _pvi
+            self._process_vision_info = _pvi
+        except ImportError:
+            self._process_vision_info = None
+
+    def invoke(self, clip_record, prompt):
+        from PIL import Image as _PIL
+
+        frames = clip_record["frames"]
+        # 리사이즈 없이 원본 해상도 그대로 — processor의 min/max_pixels가 토큰 수를 제어
+        pil_images = [_PIL.fromarray(cv2.cvtColor(f, cv2.COLOR_BGR2RGB)) for f in frames]
+
+        messages = [{"role": "user", "content": [
+            *[{"type": "image", "image": img} for img in pil_images],
+            {"type": "text", "text": prompt},
+        ]}]
+
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        if self._process_vision_info is not None:
+            image_inputs, _ = self._process_vision_info(messages)
+            inputs = self.processor(text=[text], images=image_inputs, padding=True, return_tensors="pt")
+        else:
+            inputs = self.processor(text=[text], images=pil_images, padding=True, return_tensors="pt")
+
+        inputs = {k: v.to(self.model.device) for k, v in inputs.items() if hasattr(v, "to")}
+
+        with torch.inference_mode():
+            output_ids = self.model.generate(
+                **inputs, max_new_tokens=self.max_new_tokens, do_sample=False
+            )
+
+        trimmed = output_ids[0][len(inputs["input_ids"][0]):]
+        return self.processor.decode(trimmed, skip_special_tokens=True)
+
+
 class BedrockVLMProvider:
     def __init__(self, config):
         self.model_id = str(config.get("model_id", "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
@@ -487,6 +550,8 @@ class VLMRefiner:
         self.provider_name = str(config.get("provider", "mock")).lower()
         self.sampled_frames = int(config.get("sampled_frames", 6))
         self.prompt_style = config.get("prompt_style", "binary_fight")
+        # 하이브리드 샘플링: BiGRU (n_frames - hybrid_uniform_frames)장 + 균등 hybrid_uniform_frames장
+        self.hybrid_uniform_frames = int(config.get("hybrid_uniform_frames", 0))
 
         if self.provider_name == "mock":
             self.provider = MockVLMProvider()
@@ -496,6 +561,8 @@ class VLMRefiner:
             self.provider = BedrockVLMProvider(config)
         elif self.provider_name == "qwen2vl":
             self.provider = Qwen2VLProvider(config)
+        elif self.provider_name == "qwen3vl":
+            self.provider = Qwen3VLProvider(config)
         elif self.provider_name == "minicpmv":
             self.provider = MiniCPMVProvider(config)
         elif self.provider_name == "phi35vision":
@@ -555,19 +622,37 @@ class VLMRefiner:
             return [raw_frames[positions[i]] for i in top_idx]
         return _sample_frames(clip_record["frames"], self.sampled_frames)
 
-    def score_clip_frames(self, frames_bgr, n_frames=6, meta=None):
+    def score_clip_frames(self, frames_bgr, n_frames=6, meta=None, force_uniform=False):
         """ResNet-50 → BiGRU → VLM. event-level per-clip 호출용.
 
         keyframe selector 없으면 균등 샘플링 fallback.
+        hybrid_uniform_frames > 0이면 BiGRU (n_frames - hybrid_uniform_frames)장 +
+        균등 hybrid_uniform_frames장을 혼합해서 맥락 프레임을 보장.
+        force_uniform=True이면 BiGRU 무시하고 균등 샘플링 강제.
         """
-        if self._resnet is not None and self._frame_scorer is not None:
-            features = self._resnet.extract(frames_bgr)                      # (T, 2048)
+        if self._resnet is not None and self._frame_scorer is not None and not force_uniform:
+            features = self._resnet.extract(frames_bgr)
             feat_t = torch.FloatTensor(features).to(self._scorer_device)
             with torch.no_grad():
-                scores = self._frame_scorer(feat_t)                           # (T,)
-            n = min(n_frames, len(frames_bgr))
-            top_idx = sorted(torch.topk(scores, k=n).indices.cpu().tolist())
-            selected = [frames_bgr[i] for i in top_idx]
+                scores = self._frame_scorer(feat_t)
+
+            n_uniform = self.hybrid_uniform_frames if self.hybrid_uniform_frames > 0 else 0
+            n_bigru = max(1, min(n_frames - n_uniform, len(frames_bgr)))
+
+            # BiGRU top-k
+            bigru_idx = set(torch.topk(scores, k=n_bigru).indices.cpu().tolist())
+
+            # 균등 샘플링 (이미 선택된 인덱스 제외 후 추가)
+            if n_uniform > 0 and len(frames_bgr) > n_bigru:
+                uniform_candidates = [i for i in range(0, len(frames_bgr),
+                                      max(1, len(frames_bgr) // (n_uniform + 1)))
+                                      if i not in bigru_idx]
+                uniform_idx = set(uniform_candidates[:n_uniform])
+            else:
+                uniform_idx = set()
+
+            combined = sorted(bigru_idx | uniform_idx)
+            selected = [frames_bgr[i] for i in combined]
         else:
             selected = _sample_frames(frames_bgr, n_frames)
 

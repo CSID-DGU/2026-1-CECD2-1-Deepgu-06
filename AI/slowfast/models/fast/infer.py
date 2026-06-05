@@ -56,6 +56,16 @@ class FastViolenceScorer:
         self.model = model
         self.temperature = self._resolve_temperature(state)
 
+        # blocks[-2]: head 직전 마지막 backbone stage.
+        # forward 시 (B, 192, T', H', W') 출력 → 공간 평균 → (B, T', 192) 저장.
+        self._backbone_features = None
+        self.model.blocks[-2].register_forward_hook(self._on_backbone_output)
+
+    def _on_backbone_output(self, module, input, output):
+        # output: (B, C=192, T', H', W')
+        feat = output.mean(dim=[-2, -1])                       # (B, 192, T')
+        self._backbone_features = feat.permute(0, 2, 1).detach()  # (B, T', 192)
+
     def _resolve_temperature(self, checkpoint_state):
         calibration_path = self.config.get("calibration_path")
         if calibration_path:
@@ -67,12 +77,15 @@ class FastViolenceScorer:
                 return max(float(calibration["temperature"]), 1e-3)
         return max(float(self.config.get("temperature", 1.0)), 1e-3)
 
-    def score_clips(self, clips, clip_config):
+    def score_clips(self, clips, clip_config, return_features=False):
         if not clips:
-            return []
+            return ([], []) if return_features else []
         if self.model is None:
-            return [self._heuristic_score(item["frames"]) for item in clips]
-        return self._model_score(clips, clip_config)
+            scores = [self._heuristic_score(item["frames"]) for item in clips]
+            if return_features:
+                return scores, [None] * len(scores)
+            return scores
+        return self._model_score(clips, clip_config, return_features=return_features)
 
     def _heuristic_score(self, frames):
         if len(frames) < 2:
@@ -84,7 +97,7 @@ class FastViolenceScorer:
         score = max(0.0, min(1.0, motion * 3.0))
         return score
 
-    def _model_score(self, clips, clip_config):
+    def _model_score(self, clips, clip_config, return_features=False):
         from models.fast.transforms import preprocess_clip_frames
 
         resize_width = int(clip_config["resize"]["width"])
@@ -93,7 +106,9 @@ class FastViolenceScorer:
         sampling = str(clip_config.get("sampling", "uniform"))
 
         scores = []
+        features = [] if return_features else None
         batch = []
+
         for clip in clips:
             batch.append(
                 preprocess_clip_frames(
@@ -105,11 +120,23 @@ class FastViolenceScorer:
                 )
             )
             if len(batch) == self.batch_size:
-                scores.extend(self._run_batch(batch))
+                if return_features:
+                    s, f = self._run_batch_with_features(batch)
+                    scores.extend(s)
+                    features.extend(f)
+                else:
+                    scores.extend(self._run_batch(batch))
                 batch = []
+
         if batch:
-            scores.extend(self._run_batch(batch))
-        return scores
+            if return_features:
+                s, f = self._run_batch_with_features(batch)
+                scores.extend(s)
+                features.extend(f)
+            else:
+                scores.extend(self._run_batch(batch))
+
+        return (scores, features) if return_features else scores
 
     def _run_batch(self, batch):
         inputs = torch.stack(batch).to(self.device)
@@ -118,3 +145,16 @@ class FastViolenceScorer:
             logits = logits / self.temperature
             probs = torch.sigmoid(logits).detach().cpu().tolist()
         return [float(item) for item in probs]
+
+    def _run_batch_with_features(self, batch):
+        self._backbone_features = None
+        inputs = torch.stack(batch).to(self.device)
+        with torch.no_grad():
+            logits = self.model(inputs).flatten()
+            logits = logits / self.temperature
+            probs = torch.sigmoid(logits).detach().cpu().tolist()
+        # hook이 채워준 (B, T', 192) → clip별 list로 분리
+        if self._backbone_features is not None:
+            feats = self._backbone_features.cpu().numpy()
+            return [float(p) for p in probs], [feats[i] for i in range(len(batch))]
+        return [float(p) for p in probs], [None] * len(batch)

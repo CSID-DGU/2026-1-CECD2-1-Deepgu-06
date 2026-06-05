@@ -109,6 +109,9 @@ def filter_events_by_vlm(
     max_calls = int(vlm_config.get("max_calls_per_video", 9999))
     frames_per_clip = int(vlm_config.get("frames_per_clip", 6))
     max_clips_per_event = int(vlm_config.get("max_clips_per_event", 3))
+    adaptive_threshold_sec = float(vlm_config.get("adaptive_threshold_sec", 0))
+    adaptive_long_frames = int(vlm_config.get("adaptive_long_frames", frames_per_clip))
+    adaptive_short_frames = int(vlm_config.get("adaptive_short_frames", frames_per_clip))
 
     refiner = VLMRefiner(vlm_config)
     kept = []
@@ -160,6 +163,19 @@ def filter_events_by_vlm(
                     rejected.append(event)
                 continue
 
+            # adaptive: 이벤트 길이에 따라 프레임 수 / 샘플링 방식 결정
+            if adaptive_threshold_sec > 0:
+                event_dur = (float(event.get("end_frame", 0)) - float(event.get("start_frame", 0))) / fps
+                if event_dur > adaptive_threshold_sec:
+                    clip_n_frames = adaptive_long_frames
+                    clip_force_uniform = True
+                else:
+                    clip_n_frames = adaptive_short_frames
+                    clip_force_uniform = False
+            else:
+                clip_n_frames = frames_per_clip
+                clip_force_uniform = False
+
             clip_scores = []
             called_clip_ids = []
             for clip in top_clips:
@@ -167,11 +183,12 @@ def filter_events_by_vlm(
                     break
                 result = refiner.score_clip_frames(
                     clip["frames"],
-                    n_frames=frames_per_clip,
+                    n_frames=clip_n_frames,
                     meta={
                         "fighting_prob": clip["fighting_prob"],
                         "duration_sec": 2.0,
                     },
+                    force_uniform=clip_force_uniform,
                 )
                 clip_scores.append(float(result["score"]))
                 called_clip_ids.append(clip.get("clip_id"))
