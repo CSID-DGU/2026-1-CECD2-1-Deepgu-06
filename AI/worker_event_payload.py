@@ -63,7 +63,7 @@ CALLBACK_SECRET = os.getenv("CALLBACK_SECRET", "deepgu")
 PUBLIC_MEDIA_BASE_URL = os.getenv("PUBLIC_MEDIA_BASE_URL", "").rstrip("/")
 SLOWFAST_CONFIG = os.getenv(
     "SLOWFAST_CONFIG",
-    str(SLOWFAST_ROOT / "configs" / "base.yaml"),
+    str(SLOWFAST_ROOT / "configs" / "eval_event_v3_start040_bedrock_qwen.yaml"),
 )
 SLOWFAST_CANDIDATE = os.getenv("SLOWFAST_CANDIDATE", "es_d_t3_mix_cap5")
 
@@ -105,6 +105,12 @@ def _load_runtime_config(cctv_id: Optional[int], stream_id: Optional[str]):
         config["deployment"]["cctv_id"] = cctv_id
     if stream_id:
         config["deployment"]["stream_id"] = stream_id
+    # [수정] 스트리밍은 백엔드 POST용 event_payload + 클립/썸네일이 항상 필요.
+    # eval용 config(save_run_artifacts/save_event_media=false)를 써도 강제로 켠다.
+    # (event_payload=None 으로 인한 _absolutize_events 크래시 방지)
+    config.setdefault("outputs", {})
+    config["outputs"]["save_run_artifacts"] = True
+    config["outputs"]["save_event_media"] = True
     return config
 
 

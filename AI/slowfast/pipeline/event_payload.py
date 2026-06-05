@@ -110,6 +110,13 @@ def _collect_event_vlm_signals(event, score_by_clip, vlm_outputs):
 
 
 def _build_event_description(event, score_by_clip, vlm_outputs):
+    # event-level VLM(현 운영 경로): 이벤트에 직접 붙은 한국어 중립 장면 묘사를 우선 사용.
+    # scene_description → description, vlm_reasoning(판단 근거) → reasoning_short 로 노출.
+    scene_desc = str(event.get("vlm_scene_description", "")).strip()
+    if scene_desc:
+        vlm_reasoning = str(event.get("vlm_reasoning", "")).strip()
+        return scene_desc, _extract_evidence(vlm_reasoning), (vlm_reasoning or scene_desc)
+
     signals = _collect_event_vlm_signals(event, score_by_clip, vlm_outputs)
     chosen = signals["best_positive"] or signals["best_fallback"]
     reasoning = chosen["reasoning"] if chosen else ""

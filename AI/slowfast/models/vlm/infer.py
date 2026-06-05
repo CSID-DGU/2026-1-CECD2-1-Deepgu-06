@@ -14,7 +14,16 @@ from models.vlm.parser import parse_vlm_response, parse_vlm_response_3label
 from models.vlm.prompts import (
     build_event_fight_prompt,
     build_event_fight_prompt_3label,
-    build_event_fight_prompt_v3
+    build_event_fight_prompt_v3,
+    build_event_fight_prompt_v4,
+)
+
+_V4_SUBQ_KEYS = (
+    "aggressive_confrontation",
+    "threatening_posture",
+    "crowd_reaction",
+    "aftermath",
+    "physical_contact",
 )
 
 
@@ -393,5 +402,45 @@ class VLMRefiner:
             "prompt": prompt,
             "raw_response": raw,
             "parsed": parsed,
+            "scene_description": str(parsed.get("scene_description", "")).strip(),
+            "reasoning": str(parsed.get("reasoning", "")).strip(),
+            "score": max(0.0, min(1.0, score)),
+        }
+
+    def score_event_v4(self, event_frames, event_meta=None):
+        """v4 event scoring: guiding sub-question 분해.
+
+        5개 폭력 지표를 각각 true/false로 답하게 한 뒤 label/confidence로 결론.
+        점수 환산은 v3와 동일(score = conf if fight else 1-conf). 응답의 sub-question
+        불리언은 분석용으로 subq에 담아 반환한다.
+        """
+        meta = event_meta or {}
+        duration_sec = float(meta.get("duration_sec", 0.0))
+        prompt = build_event_fight_prompt_v4(num_frames=len(event_frames), duration_sec=duration_sec)
+        event_record = {
+            "frames": event_frames,
+            "fighting_prob": float(meta.get("peak_score", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": f"event duration {duration_sec:.1f}s",
+        }
+        raw = self.provider.invoke(event_record, prompt)
+        parsed = parse_vlm_response(raw)
+        label = parsed.get("label", "non_fight")
+        confidence = float(parsed.get("confidence", 0.5))
+        score = confidence if label == "fight" else 1.0 - confidence
+
+        def _as_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.strip().lower() in {"true", "yes", "1"}
+            return None
+
+        subq = {k: _as_bool(parsed.get(k)) for k in _V4_SUBQ_KEYS}
+        return {
+            "prompt": prompt,
+            "raw_response": raw,
+            "parsed": parsed,
+            "subq": subq,
             "score": max(0.0, min(1.0, score)),
         }

@@ -99,7 +99,6 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
         write_json(output_root / "manifest.json", manifest)
         write_json(output_root / "events.json", events)
         write_json(output_root / "clip_scores.json", serializable_scores)
-        write_json(output_root / "vlm_outputs.json", vlm_outputs)
         if rejected_events:
             write_json(output_root / "rejected_events.json", rejected_events)
         event_payload = build_event_payload_bundle(
