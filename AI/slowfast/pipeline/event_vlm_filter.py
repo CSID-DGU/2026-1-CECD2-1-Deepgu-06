@@ -180,6 +180,8 @@ def filter_events_by_vlm(
             event["vlm_score"] = vlm_score
             event["vlm_decision"] = decision
             event["vlm_raw"] = result.get("raw_response", "")
+            event["vlm_scene_description"] = result.get("scene_description", "")
+            event["vlm_reasoning"] = result.get("reasoning", "")
             if decision == "reject":
                 rejected.append(event)
                 continue

@@ -48,6 +48,10 @@ def build_event_fight_prompt_v3(num_frames, duration_sec=None):
     return (
         f"You are given {int(num_frames)} frames from a CCTV event{duration_note}.\n"
         "An automated system flagged this segment as a potential fight incident.\n\n"
+        "STEP 1 — OBSERVE FIRST. Before judging, write 'scene_description' in KOREAN\n"
+        "(under 35 words): a neutral, factual account of the people, their actions, and\n"
+        "the setting. Do NOT say whether it is a fight — only describe what is visible.\n\n"
+        "STEP 2 — THEN DECIDE the label.\n"
         "DEFINITION: A fight incident covers the full arc of a violence-related event:\n"
         "verbal confrontation → aggressive approach → pushing or physical contact"
         " → active fighting → immediate aftermath.\n\n"
@@ -64,10 +68,12 @@ def build_event_fight_prompt_v3(num_frames, duration_sec=None):
         "  - People are walking, waiting, or engaging in casual conversation\n"
         "  - Ordinary crowd movement with no conflict indicators\n\n"
         "When uncertain, choose 'fight'.\n\n"
-        "Return strict JSON only:\n"
-        '{"label": "fight"|"non_fight",'
+        "'reasoning' must be written in KOREAN, explaining the label decision (under 20 words).\n"
+        "Return strict JSON only, with scene_description FIRST:\n"
+        '{"scene_description": "<한국어, 35단어 이내, 중립적 장면 묘사>",'
+        ' "label": "fight"|"non_fight",'
         ' "confidence": <float 0.0-1.0>,'
-        ' "reasoning": "<under 20 words>"}'
+        ' "reasoning": "<한국어, 20단어 이내, 판단 근거>"}'
     )
 
 

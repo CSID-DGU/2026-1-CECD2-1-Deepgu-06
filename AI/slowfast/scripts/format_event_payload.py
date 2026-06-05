@@ -27,7 +27,9 @@ def main():
     manifest = load_json(output_dir / "manifest.json")
     events = load_json(output_dir / "events.json")
     clip_scores = load_json(output_dir / "clip_scores.json")
-    vlm_outputs = load_json(output_dir / "vlm_outputs.json")
+    # event-level VLM 경로는 vlm_outputs.json 을 만들지 않음(항상 {}). 없으면 빈 dict.
+    _vlm_path = output_dir / "vlm_outputs.json"
+    vlm_outputs = load_json(_vlm_path) if _vlm_path.exists() else {}
 
     config = load_config(args.config)
     config.setdefault("_meta", {})
