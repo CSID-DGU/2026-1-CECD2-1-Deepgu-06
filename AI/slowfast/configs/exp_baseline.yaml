@@ -28,7 +28,7 @@ vlm:
   level: event
   enabled: true
   model_path: /home/hyrn2/.cache/huggingface/hub/models--OpenGVLab--InternVL2-8B/snapshots/6fb9ad6924f69424e57fab2ab061d707688f0296
-  device: cuda:0
+  device: cuda:1
   torch_dtype: bfloat16
   frame_image_size: 448
   max_new_tokens: 64

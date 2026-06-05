@@ -1,5 +1,5 @@
 project:
-  output_root: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/slowfast/outputs/eval/keyframe_vlm/internvl4b_6frames
+  output_root: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/slowfast/outputs/eval/keyframe_vlm/internvl4b_vlmlabel_6f
 
 clip:
   temporal_window_sec: 2.0
@@ -38,9 +38,9 @@ vlm:
   trust_remote_code: true
   load_in_8bit: false
   load_in_4bit: false
-  keyframe_selector_path: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/ai_pipeline/outputs/frame_selector.pth
+  keyframe_selector_path: /home/hyrn2/github/2026-1-CECD2-1-Deepgu-06/AI/keyframe/outputs/frame_selector_vlm.pth
   keyframe_selector_input_dim: 2048
-  keyframe_selector_device: cuda:1
+  keyframe_selector_device: cuda:2
   resnet_batch_size: 16
   frames_per_clip: 6
   max_clips_per_event: 3
