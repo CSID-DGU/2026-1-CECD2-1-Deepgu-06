@@ -1,0 +1,76 @@
+clip:
+  resize:
+    height: 160
+    width: 160
+  sampled_frames: 13
+  sampling: uniform
+  stride_sec: 1.0
+  temporal_window_sec: 2.0
+data_loader:
+  num_workers: 8
+  persistent_workers: true
+  pin_memory: true
+fast_model:
+  amp: true
+  architecture: x3d_s
+  batch_size: 8
+  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap030_focal/x3d_s_fast_model_best.pt
+  device: auto
+  fallback_mode: heuristic
+  input_clip_length: 13
+  input_crop_size: 160
+  num_classes: 1
+  use_pos_weight: true
+  use_pretrained_backbone: false
+fusion:
+  fast_weight: 1.0
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: false
+  vlm_weight: 0.0
+outputs:
+  save_clip_manifest: false
+  save_event_media: false
+  save_frame_samples: false
+  save_run_artifacts: false
+project:
+  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap030_focal_internvl_event_v3
+thresholds:
+  end_score: 0.36
+  min_event_duration_sec: 0.5
+  score_smoothing:
+    enabled: true
+    method: moving_average
+    window_size: 3
+  split:
+    enabled: true
+    min_consecutive_clips: 2
+    score_threshold: 0.40
+  start_score: 0.48
+vlm:
+  accept_threshold: 0.65
+  device: cuda:0
+  do_sample: false
+  enabled: false
+  frame_image_size: 448
+  level: event
+  load_in_4bit: false
+  load_in_8bit: false
+  local_files_only: true
+  max_calls_per_video: 9999
+  max_new_tokens: 64
+  model_path: /home/deepgu/.cache/huggingface/hub/models--OpenGVLab--InternVL2-8B/snapshots/6fb9ad6924f69424e57fab2ab061d707688f0296
+  peak_margin_sec: 4.0
+  peak_score_max: 0.85
+  prompt_mode: v3
+  provider: internvl
+  reject_threshold: 0.35
+  repo_path: /home/deepgu/VERA/InternVL/internvl_chat
+  sampled_frames_per_event: 8
+  temperature: 0.0
+  top_p: 0.9
+  torch_dtype: bfloat16
+  trust_remote_code: true
+  uncertain_action: keep
+  use_flash_attn: false
+  verbose: false
