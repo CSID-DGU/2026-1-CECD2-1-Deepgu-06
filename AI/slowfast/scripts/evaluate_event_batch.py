@@ -172,7 +172,13 @@ def main():
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--summary-only", action="store_true")
-    parser.add_argument("--video-ids", nargs="+", default=None, help="평가할 video_id 목록 (미지정 시 전체)")
+    parser.add_argument("--video-ids", nargs="+", default=None,
+                        help="평가할 video_id 목록을 직접 지정 (지정 시 service-scope/all 무시)")
+    parser.add_argument("--service-scope-json",
+                        default=str(PROJECT_ROOT / "data/manifests/test_service_scope.json"),
+                        help="61개 service-scope 목록 파일 (기본 평가 범위)")
+    parser.add_argument("--all-videos", action="store_true",
+                        help="service-scope 제한을 풀고 subset+source 전체(예: testing 70개)를 평가")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -185,6 +191,18 @@ def main():
     output_path = Path(args.output_json)
     ensure_dir(output_path.parent)
 
+    # 평가 범위 결정 (우선순위: 명시적 --video-ids > --all-videos > service-scope)
+    if args.video_ids is not None:
+        allowed_ids = set(args.video_ids)
+        video_scope = "explicit"
+    elif args.all_videos:
+        allowed_ids = None  # subset+source 필터만 적용
+        video_scope = "all"
+    else:
+        allowed_ids = set(load_json(args.service_scope_json)["video_ids"])
+        video_scope = "service_scope"
+    print(f"[scope] {video_scope} (videos={'all' if allowed_ids is None else len(allowed_ids)})", flush=True)
+
     per_video = []
     processed = 0
     for video_id, meta in sorted(database.items()):
@@ -194,7 +212,7 @@ def main():
             continue
         if subset != args.subset:
             continue
-        if args.video_ids is not None and video_id not in args.video_ids:
+        if allowed_ids is not None and video_id not in allowed_ids:
             continue
 
         video_path = build_video_path(args.dataset_root, source, subset, video_id)
@@ -229,6 +247,7 @@ def main():
         "source_filter": args.source_filter,
         "iou_threshold": float(args.iou_threshold),
         "eval_mode": args.eval_mode,
+        "video_scope": video_scope,
         "summary_only": bool(args.summary_only),
         "summary": summary,
         "per_video": per_video,
