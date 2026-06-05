@@ -141,7 +141,10 @@ def main(args):
     random.shuffle(train_recs)
     random.shuffle(val_recs)
 
-    print(f"train: {len(train_recs)}, val: {len(val_recs)}")
+    n_anom   = len(anom_recs)
+    n_normal = len(normal_recs)
+    print(f"train: {len(train_recs)}, val: {len(val_recs)} "
+          f"(anomaly={n_anom}, normal={n_normal})")
 
     train_loader = DataLoader(ClipDataset(train_recs), batch_size=args.batch_size,
                               shuffle=True,  collate_fn=collate_fn, num_workers=8, pin_memory=True)
@@ -150,13 +153,23 @@ def main(args):
 
     # 모델
     model = DifferentiableFrameSelector(
-        input_dim=192, hidden_dim=256,
+        input_dim=args.input_dim, hidden_dim=256,
         n_frames=args.n_frames, n_classes=2,
     ).to(args.device)
 
     optimizer  = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    criterion  = nn.CrossEntropyLoss()
+
+    # class imbalance 보정: normal이 anomaly보다 많을 때 anomaly에 더 높은 weight
+    if n_anom > 0 and n_normal > 0:
+        w_normal = 1.0
+        w_anom   = n_normal / n_anom  # e.g. 18:1 imbalance → anomaly weight=18
+        class_weights = torch.tensor([w_normal, w_anom], dtype=torch.float32).to(args.device)
+        print(f"class weights: normal={w_normal:.2f}, anomaly={w_anom:.2f}")
+    else:
+        class_weights = None
+
+    criterion  = nn.CrossEntropyLoss(weight=class_weights)
 
     # temperature 스케줄: 학습 초기 1.0 → 후기 0.1 (점점 hard selection)
     temp_start, temp_end = 1.0, 0.1
@@ -208,12 +221,14 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="FrameScorer 학습")
     parser.add_argument("--label_path",  required=True,
-                        help="prepare_data.py가 생성한 train.json 경로")
+                        help="prepare_data.py 또는 relabel_with_vlm.py가 생성한 train.json 경로")
     parser.add_argument("--save_path",   default="outputs/frame_selector.pth")
     parser.add_argument("--n_frames",    type=int,   default=8)
     parser.add_argument("--epochs",      type=int,   default=50)
     parser.add_argument("--lr",          type=float, default=1e-4)
     parser.add_argument("--batch_size",  type=int,   default=16)
+    parser.add_argument("--input_dim",   type=int,   default=192,
+                        help="feature 차원 (X3D=192, ResNet-50=2048)")
     parser.add_argument("--device",      default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     main(args)

@@ -66,10 +66,14 @@ class KeyframeSampler:
         각 cluster에서 motion이 가장 큰 frame index를 선택합니다.
         """
         T = len(frames)
+        T_feat = len(features)
         n = min(self.n_frames, T)
 
         if T <= n:
             return list(range(T))
+
+        # feature 인덱스 → 원본 frame 인덱스 매핑 (phase2와 동일)
+        feat_to_frame = np.linspace(0, T - 1, T_feat).round().astype(int)
 
         motion = self._motion_scores(features)
 
@@ -82,7 +86,7 @@ class KeyframeSampler:
             if len(cluster_idx) == 0:
                 continue
             best = cluster_idx[np.argmax(motion[cluster_idx])]
-            selected.append(int(best))
+            selected.append(int(feat_to_frame[best]))
 
         return sorted(selected)
 
@@ -92,33 +96,38 @@ class KeyframeSampler:
 
     def _phase2_select(self, frames, features, win=16, stride=8):
         """
-        슬라이딩 윈도우로 BiGRU를 적용해 전체 영상 frame 점수를 계산합니다.
+        슬라이딩 윈도우로 BiGRU를 적용해 frame 점수를 계산합니다.
 
-        T <= win 이면 그냥 통으로 넣음 (clip-level 동작과 동일).
-        T > win 이면 win 크기 윈도우를 stride 간격으로 슬라이드하면서
-        각 윈도우의 frame별 점수를 누적(max)한 뒤 전체 top-n을 선택.
+        X3DFeatureExtractor는 가변 길이 clip을 항상 T'=13 features로 압축하므로
+        슬라이딩 윈도우는 features 기준(T_feat)으로 수행하고,
+        선택된 feature 인덱스를 원본 frames 인덱스로 역매핑합니다.
         """
         T = len(frames)
-        n = min(self.n_frames, T)
+        T_feat = len(features)
+        n = min(self.n_frames, T_feat)
 
-        if T <= win:
+        # feature 인덱스 → 원본 frame 인덱스 매핑
+        feat_to_frame = np.linspace(0, T - 1, T_feat).round().astype(int)
+
+        if T_feat <= win:
             x = torch.FloatTensor(features).to(self.device)
             with torch.no_grad():
-                scores = self.scorer(x).cpu().numpy()
+                scores = self.scorer(x).cpu().numpy()  # (T_feat,)
         else:
-            scores = np.full(T, -np.inf, dtype=np.float32)
-            starts = list(range(0, T - win + 1, stride))
-            if starts[-1] + win < T:          # 마지막 윈도우가 끝까지 못 닿을 때
-                starts.append(T - win)
+            scores = np.full(T_feat, -np.inf, dtype=np.float32)
+            starts = list(range(0, T_feat - win + 1, stride))
+            if not starts or starts[-1] + win < T_feat:
+                starts.append(max(0, T_feat - win))
             for s in starts:
-                e = s + win
+                e = min(s + win, T_feat)
                 x = torch.FloatTensor(features[s:e]).to(self.device)
                 with torch.no_grad():
-                    win_scores = self.scorer(x).cpu().numpy()  # (win,)
+                    win_scores = self.scorer(x).cpu().numpy()  # (e-s,)
                 scores[s:e] = np.maximum(scores[s:e], win_scores)
 
-        top_idx = np.argsort(scores)[::-1][:n]
-        return sorted(top_idx.tolist())
+        top_feat_idx = np.argsort(scores)[::-1][:n]
+        top_frame_idx = sorted([int(feat_to_frame[i]) for i in top_feat_idx])
+        return top_frame_idx
 
     # ------------------------------------------------------------------
     # 공개 인터페이스
