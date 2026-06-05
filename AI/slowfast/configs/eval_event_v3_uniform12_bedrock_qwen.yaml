@@ -34,7 +34,7 @@ outputs:
   save_frame_samples: false
   save_run_artifacts: false
 project:
-  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap030_focal_bedrock_qwen_event_v3
+  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap030_focal_bedrock_qwen_event_v3_uniform12
 thresholds:
   end_score: 0.36
   min_event_duration_sec: 0.5
@@ -50,11 +50,10 @@ thresholds:
 vlm:
   enabled: true
   level: event
+  # v3 운영 프롬프트 유지. 샘플링만 uniform12로 변경(긴 이벤트 peak 오정렬 TP 회수).
   prompt_mode: v3
   # --- Bedrock provider 설정 ---
   provider: bedrock
-  # Qwen3-VL (FP 억제 우위, 20260604 probe). Sonnet으로 바꾸려면 아래 model_id만
-  # us.anthropic.claude-sonnet-4-6 으로 교체.
   model_id: qwen.qwen3-vl-235b-a22b
   region: us-east-1
   max_tokens: 256
@@ -63,13 +62,7 @@ vlm:
   reject_threshold: 0.35
   uncertain_action: keep
   peak_margin_sec: 4.0
-  # duration-adaptive 샘플링:
-  #   >=20s 이벤트는 uniform 12장(긴 이벤트 peak 오정렬 TP 회수),
-  #   <20s 이벤트는 기존 peak 8장(짧은/집중형 보호).
-  sampling_mode: adaptive
-  adaptive_threshold_sec: 20.0
-  uniform_frames: 12
-  peak_frames: 8
-  # provider 재샘플 상한(긴 이벤트 12장 통과, 짧은 이벤트는 8장 그대로)
+  # peak 편향 제거, 이벤트 전체 균등 12장 샘플링
+  sampling_mode: uniform
   sampled_frames: 12
-  sampled_frames_per_event: 8
+  sampled_frames_per_event: 12
