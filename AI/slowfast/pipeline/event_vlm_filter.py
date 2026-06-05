@@ -3,8 +3,8 @@ Event-level VLM filter.
 
 Fast model이 생성한 이벤트 후보를 VLM이 이벤트 단위로 검증.
 - clip-level fusion 없음: fast_peak_score 보존
-- 3단계 결정: accept / uncertain / reject
-- peak_score 상한(peak_score_max) 초과 이벤트는 VLM 없이 자동 accept
+- 3단계 결정: accept / uncertain / reject (uncertain은 기본 keep)
+- 모든 이벤트 후보를 VLM에 통과시킨다.
 """
 from __future__ import annotations
 
@@ -102,10 +102,8 @@ def filter_events_by_vlm(
     accept_thr = float(vlm_config.get("accept_threshold", 0.65))
     reject_thr = float(vlm_config.get("reject_threshold", 0.35))
     uncertain_action = str(vlm_config.get("uncertain_action", "keep")).lower()
-    peak_score_max = float(vlm_config.get("peak_score_max", 0.85))
     n_frames = int(vlm_config.get("sampled_frames_per_event", 8))
     peak_margin_sec = float(vlm_config.get("peak_margin_sec", 4.0))
-    max_calls = int(vlm_config.get("max_calls_per_video", 9999))
 
     refiner = VLMRefiner(vlm_config)
     kept = []
@@ -115,25 +113,6 @@ def filter_events_by_vlm(
     for event in events:
         peak_score = float(event.get("peak_score", 0.0))
         event["fast_peak_score"] = peak_score
-
-        # 매우 확실한 이벤트 → VLM 없이 통과
-        if peak_score > peak_score_max:
-            event["vlm_called"] = False
-            event["vlm_decision"] = "accept"
-            event["vlm_score"] = None
-            kept.append(event)
-            continue
-
-        # VLM 호출 한도 초과 → uncertain 처리
-        if vlm_call_count >= max_calls:
-            event["vlm_called"] = False
-            event["vlm_decision"] = "uncertain"
-            event["vlm_score"] = None
-            if uncertain_action != "discard":
-                kept.append(event)
-            else:
-                rejected.append(event)
-            continue
 
         # 이벤트 프레임 추출 후 VLM 호출
         event_frames = extract_event_frames(all_frames, event, n_frames, fps=fps,

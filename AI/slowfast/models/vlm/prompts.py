@@ -38,3 +38,34 @@ def build_binary_fight_prompt(motion_summary, num_frames=None):
         'Question: "Does this clip show any sign of physical aggression, even subtle or partial?"\n'
         f"Motion summary: {motion_summary}"
     )
+
+
+def build_event_fight_prompt_v3(num_frames, duration_sec=None):
+    duration_note = (
+        f" spanning approximately {duration_sec:.1f} seconds"
+        if duration_sec else ""
+    )
+    return (
+        f"You are given {int(num_frames)} frames from a CCTV event{duration_note}.\n"
+        "An automated system flagged this segment as a potential fight incident.\n\n"
+        "DEFINITION: A fight incident covers the full arc of a violence-related event:\n"
+        "verbal confrontation → aggressive approach → pushing or physical contact"
+        " → active fighting → immediate aftermath.\n\n"
+        "Label as 'fight' if ANY of the following is visible:\n"
+        "  - Verbal argument or heated confrontation between individuals\n"
+        "  - Aggressive approaching, blocking, or threatening posture\n"
+        "  - Pushing, shoving, grabbing, or physical contact with aggressive intent\n"
+        "  - Active punching, kicking, or physical assault\n"
+        "  - Immediate aftermath: restraining, intervening, or"
+        " attending to an injured person at the scene\n\n"
+        "Label as 'non_fight' ONLY if ALL of the following are true:\n"
+        "  - No argument, confrontation, or aggressive interaction visible\n"
+        "  - No signs of physical contact, injury, or bystander reaction to an incident\n"
+        "  - People are walking, waiting, or engaging in casual conversation\n"
+        "  - Ordinary crowd movement with no conflict indicators\n\n"
+        "When uncertain, choose 'fight'.\n\n"
+        "Return strict JSON only:\n"
+        '{"label": "fight"|"non_fight",'
+        ' "confidence": <float 0.0-1.0>,'
+        ' "reasoning": "<under 20 words>"}'
+    )
