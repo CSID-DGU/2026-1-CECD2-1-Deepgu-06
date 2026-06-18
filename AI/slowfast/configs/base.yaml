@@ -90,7 +90,7 @@ fusion:
     protect_floor_score: 0.36
 
 thresholds:
-  start_score: 0.48
+  start_score: 0.40
   end_score: 0.36
   min_event_duration_sec: 0.5
   split:

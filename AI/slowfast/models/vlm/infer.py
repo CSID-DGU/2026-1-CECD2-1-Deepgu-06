@@ -10,8 +10,21 @@ from typing import Dict, List
 import cv2
 import numpy as np
 
-from models.vlm.parser import parse_vlm_response
-from models.vlm.prompts import build_binary_fight_prompt, build_event_fight_prompt
+from models.vlm.parser import parse_vlm_response, parse_vlm_response_3label
+from models.vlm.prompts import (
+    build_event_fight_prompt,
+    build_event_fight_prompt_3label,
+    build_event_fight_prompt_v3,
+    build_event_fight_prompt_v4,
+)
+
+_V4_SUBQ_KEYS = (
+    "aggressive_confrontation",
+    "threatening_posture",
+    "crowd_reaction",
+    "aftermath",
+    "physical_contact",
+)
 
 
 class MockVLMProvider:
@@ -289,12 +302,21 @@ class BedrockVLMProvider:
             })
         content.append({"text": prompt})
 
-        response = self._get_client().converse(
-            modelId=self.model_id,
-            messages=[{"role": "user", "content": content}],
-            inferenceConfig={"maxTokens": self.max_tokens, "temperature": 0.0},
-        )
-        return response["output"]["message"]["content"][0]["text"]
+        # 일시적 오류(throttling/timeout) 대비 지수 백오프 재시도
+        import time
+        last_err = None
+        for attempt in range(5):
+            try:
+                response = self._get_client().converse(
+                    modelId=self.model_id,
+                    messages=[{"role": "user", "content": content}],
+                    inferenceConfig={"maxTokens": self.max_tokens, "temperature": 0.0},
+                )
+                return response["output"]["message"]["content"][0]["text"]
+            except Exception as exc:  # noqa: BLE001 - 재시도 후 마지막 오류 재발생
+                last_err = exc
+                time.sleep(2 ** attempt)
+        raise last_err
 
 
 class VLMRefiner:
@@ -311,6 +333,31 @@ class VLMRefiner:
             self.provider = BedrockVLMProvider(config)
         else:
             raise ValueError(f"unsupported VLM provider: {self.provider_name}")
+
+    def score_event_3label(self, event_frames, event_meta=None):
+        """3-label event scoring: level 0=clear non-fight, 1=ambiguous, 2=clear fight."""
+        meta = event_meta or {}
+        duration_sec = float(meta.get("duration_sec", 0.0))
+        prompt = build_event_fight_prompt_3label(num_frames=len(event_frames), duration_sec=duration_sec)
+        event_record = {
+            "frames": event_frames,
+            "fighting_prob": float(meta.get("peak_score", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": f"event duration {duration_sec:.1f}s",
+        }
+        raw = self.provider.invoke(event_record, prompt)
+        parsed = parse_vlm_response_3label(raw)
+        level = int(parsed.get("level", 1))
+        # score: level 0 → ~0.05, level 1 → ~0.50, level 2 → ~0.95 (로깅·분석용)
+        _level_score = {0: 0.05, 1: 0.50, 2: 0.95}
+        score = _level_score.get(level, 0.50)
+        return {
+            "prompt": prompt,
+            "raw_response": raw,
+            "parsed": parsed,
+            "level": level,
+            "score": score,
+        }
 
     def score_event(self, event_frames, event_meta=None):
         """Score an entire event window as a single VLM call (event-level VLM)."""
@@ -335,12 +382,18 @@ class VLMRefiner:
             "score": max(0.0, min(1.0, score)),
         }
 
-    def score_clip(self, clip_record):
-        prompt = build_binary_fight_prompt(
-            clip_record["motion_summary"],
-            num_frames=min(self.sampled_frames, len(clip_record.get("frames", []))),
-        )
-        raw = self.provider.invoke(clip_record, prompt)
+    def score_event_v3(self, event_frames, event_meta=None):
+        """v3 event scoring: violence-related event arc (언쟁→사후 전체 포함)."""
+        meta = event_meta or {}
+        duration_sec = float(meta.get("duration_sec", 0.0))
+        prompt = build_event_fight_prompt_v3(num_frames=len(event_frames), duration_sec=duration_sec)
+        event_record = {
+            "frames": event_frames,
+            "fighting_prob": float(meta.get("peak_score", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": f"event duration {duration_sec:.1f}s",
+        }
+        raw = self.provider.invoke(event_record, prompt)
         parsed = parse_vlm_response(raw)
         label = parsed.get("label", "non_fight")
         confidence = float(parsed.get("confidence", 0.5))
@@ -349,5 +402,45 @@ class VLMRefiner:
             "prompt": prompt,
             "raw_response": raw,
             "parsed": parsed,
+            "scene_description": str(parsed.get("scene_description", "")).strip(),
+            "reasoning": str(parsed.get("reasoning", "")).strip(),
+            "score": max(0.0, min(1.0, score)),
+        }
+
+    def score_event_v4(self, event_frames, event_meta=None):
+        """v4 event scoring: guiding sub-question 분해.
+
+        5개 폭력 지표를 각각 true/false로 답하게 한 뒤 label/confidence로 결론.
+        점수 환산은 v3와 동일(score = conf if fight else 1-conf). 응답의 sub-question
+        불리언은 분석용으로 subq에 담아 반환한다.
+        """
+        meta = event_meta or {}
+        duration_sec = float(meta.get("duration_sec", 0.0))
+        prompt = build_event_fight_prompt_v4(num_frames=len(event_frames), duration_sec=duration_sec)
+        event_record = {
+            "frames": event_frames,
+            "fighting_prob": float(meta.get("peak_score", 0.5)),
+            "uncertainty": 0.5,
+            "motion_summary": f"event duration {duration_sec:.1f}s",
+        }
+        raw = self.provider.invoke(event_record, prompt)
+        parsed = parse_vlm_response(raw)
+        label = parsed.get("label", "non_fight")
+        confidence = float(parsed.get("confidence", 0.5))
+        score = confidence if label == "fight" else 1.0 - confidence
+
+        def _as_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.strip().lower() in {"true", "yes", "1"}
+            return None
+
+        subq = {k: _as_bool(parsed.get(k)) for k in _V4_SUBQ_KEYS}
+        return {
+            "prompt": prompt,
+            "raw_response": raw,
+            "parsed": parsed,
+            "subq": subq,
             "score": max(0.0, min(1.0, score)),
         }

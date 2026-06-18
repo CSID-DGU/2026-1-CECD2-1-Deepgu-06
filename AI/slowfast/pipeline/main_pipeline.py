@@ -1,15 +1,11 @@
 from pathlib import Path
 
-from models.vlm.infer import VLMRefiner
 from pipeline.clip_generator import build_sliding_clips
 from pipeline.event_payload import attach_event_media, build_event_payload_bundle
 from pipeline.event_builder import build_events
 from pipeline.event_vlm_filter import filter_events_by_vlm
 from pipeline.fast_stage import score_clips_fast
 from pipeline.fusion import fuse_scores
-from pipeline.motion_summary import attach_motion_summaries
-from pipeline.router import select_vlm_clips
-from pipeline.uncertainty import attach_uncertainty
 from utils.io import ensure_dir, write_json
 from utils.time_utils import utc_now_iso
 from utils.video import load_video_frames
@@ -41,15 +37,6 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
         print(f"[clips] generated={len(clips)}")
 
     scored = score_clips_fast(clips, config["fast_model"], config["clip"])
-    router_cfg = config.get("router", {})
-    scored = attach_uncertainty(
-        scored,
-        score_key="fighting_prob",
-        alpha_entropy=float(router_cfg.get("alpha_entropy", 0.7)),
-        alpha_variance=float(router_cfg.get("alpha_variance", 0.3)),
-        variance_window=int(router_cfg.get("variance_window", 5)),
-    )
-    scored = attach_motion_summaries(scored)
 
     vlm_enabled = bool(config["vlm"].get("enabled", True))
     vlm_level = str(config["vlm"].get("level", "clip")).lower()
@@ -70,18 +57,14 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
             print(f"[vlm] event-level calls={n_vlm_calls}, kept={len(events)}, "
                   f"rejected={len(rejected_events)}, decisions={decisions}")
     else:
-        # Clip-level VLM (original path)
-        vlm_outputs = {}
-        selected_clip_ids = []
+        # Fast-only 경로 (vlm.enabled=false). 운영 파이프라인은 event-level VLM만 사용
+        # clip-level VLM 경로(router 라우팅 + clip 단위 score_clip 융합) 제거.
         if vlm_enabled:
-            selected_clip_ids = select_vlm_clips(scored, config["router"])
-            refiner = VLMRefiner(config["vlm"])
-            for item in scored:
-                if int(item["clip_id"]) not in selected_clip_ids:
-                    continue
-                vlm_outputs[int(item["clip_id"])] = refiner.score_clip(item)
-        if verbose:
-            print(f"[vlm] selected={len(selected_clip_ids)}")
+            raise NotImplementedError(
+                "clip-level VLM 경로는 제거되었습니다. vlm.level='event'(event-level VLM) 또는 "
+                "vlm.enabled=false(fast-only)로 설정하세요."
+            )
+        vlm_outputs = {}
         fused = fuse_scores(scored, vlm_outputs, config["fusion"])
         events, smoothed_scores = build_events(fused, config["thresholds"], fps=fps)
         rejected_events = []
@@ -116,7 +99,6 @@ def run_single_video_pipeline(video_path, config, run_name="single_video", verbo
         write_json(output_root / "manifest.json", manifest)
         write_json(output_root / "events.json", events)
         write_json(output_root / "clip_scores.json", serializable_scores)
-        write_json(output_root / "vlm_outputs.json", vlm_outputs)
         if rejected_events:
             write_json(output_root / "rejected_events.json", rejected_events)
         event_payload = build_event_payload_bundle(

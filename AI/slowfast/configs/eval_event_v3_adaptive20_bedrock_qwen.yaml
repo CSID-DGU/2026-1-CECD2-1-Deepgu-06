@@ -1,0 +1,72 @@
+clip:
+  resize:
+    height: 160
+    width: 160
+  sampled_frames: 13
+  sampling: uniform
+  stride_sec: 1.0
+  temporal_window_sec: 2.0
+data_loader:
+  num_workers: 8
+  persistent_workers: true
+  pin_memory: true
+fast_model:
+  amp: true
+  architecture: x3d_s
+  batch_size: 8
+  checkpoint_path: /home/deepgu/slowfast/outputs/train/overlap030_focal/x3d_s_fast_model_best.pt
+  device: auto
+  fallback_mode: heuristic
+  input_clip_length: 13
+  input_crop_size: 160
+  num_classes: 1
+  use_pos_weight: true
+  use_pretrained_backbone: false
+fusion:
+  fast_weight: 1.0
+  only_when_vlm_called: true
+  suppression_bound:
+    enabled: false
+  vlm_weight: 0.0
+outputs:
+  save_clip_manifest: false
+  save_event_media: false
+  save_frame_samples: false
+  save_run_artifacts: false
+project:
+  output_root: /home/deepgu/slowfast/outputs/eval/event_compare/overlap030_focal_bedrock_qwen_event_v3_adaptive20
+thresholds:
+  end_score: 0.36
+  min_event_duration_sec: 0.5
+  score_smoothing:
+    enabled: true
+    method: moving_average
+    window_size: 3
+  split:
+    enabled: true
+    min_consecutive_clips: 2
+    score_threshold: 0.40
+  start_score: 0.40
+vlm:
+  enabled: true
+  level: event
+  # v3 운영 프롬프트 유지. 샘플링은 duration-adaptive.
+  prompt_mode: v3
+  # --- Bedrock provider 설정 ---
+  provider: bedrock
+  model_id: qwen.qwen3-vl-235b-a22b
+  region: us-east-1
+  max_tokens: 256
+  # --- event-level VLM filter 설정 ---
+  accept_threshold: 0.65
+  reject_threshold: 0.35
+  uncertain_action: keep
+  peak_margin_sec: 4.0
+  # duration-adaptive 샘플링: >=20s 이벤트는 uniform 12장, 미만은 peak 8장.
+  sampling_mode: adaptive
+  adaptive_threshold_sec: 20.0
+  uniform_frames: 12
+  peak_frames: 8
+  # provider 재샘플 상한(긴 이벤트 12장 통과, 짧은 이벤트는 8장 그대로)
+  sampled_frames: 12
+  sampled_frames_per_event: 8

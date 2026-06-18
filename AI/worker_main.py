@@ -24,7 +24,7 @@ import sys
 import tempfile
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -103,14 +103,17 @@ def _post_fight_session(
             print(f"[worker_main] YOLO skipped: {exc}")
 
         # [수정] 누적 fight session 클립으로 clip_video_path 교체
+        duration_sec = len(fight_frames) / max(fps, 1.0)
         updated_event = dict(best_event)
         updated_event["clip_video_path"] = clip_path
+        # [수정] started_at/ended_at/duration_sec 을 합쳐진 세션 전체 기준으로 맞춤.
+        # (기존엔 started_at만 덮어써 ended_at이 best 윈도우 값으로 남아 클립 길이와 불일치)
         updated_event["started_at"] = fight_started_at.isoformat()
+        updated_event["ended_at"] = (fight_started_at + timedelta(seconds=duration_sec)).isoformat()
+        updated_event["duration_sec"] = round(duration_sec, 3)
 
         payload = dict(best_payload)
         payload["events"] = [updated_event]
-
-        duration_sec = len(fight_frames) / max(fps, 1.0)
         print(
             f"[worker_main] posting fight session "
             f"frames={len(fight_frames)} duration={duration_sec:.1f}s "

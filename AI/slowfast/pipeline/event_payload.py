@@ -110,6 +110,17 @@ def _collect_event_vlm_signals(event, score_by_clip, vlm_outputs):
 
 
 def _build_event_description(event, score_by_clip, vlm_outputs):
+    # event-level VLM(현 운영 경로): 대시보드 description 에 상황 설명 + 판단 근거를 함께 노출.
+    # scene_description(중립 묘사) 과 vlm_reasoning(판단 근거) 을 한 필드로 합쳐 보낸다.
+    scene_desc = str(event.get("vlm_scene_description", "")).strip()
+    vlm_reasoning = str(event.get("vlm_reasoning", "")).strip()
+    if scene_desc or vlm_reasoning:
+        if scene_desc and vlm_reasoning:
+            description = f"{scene_desc}\n판단 근거: {vlm_reasoning}"
+        else:
+            description = scene_desc or vlm_reasoning
+        return description, _extract_evidence(vlm_reasoning), (vlm_reasoning or scene_desc)
+
     signals = _collect_event_vlm_signals(event, score_by_clip, vlm_outputs)
     chosen = signals["best_positive"] or signals["best_fallback"]
     reasoning = chosen["reasoning"] if chosen else ""

@@ -21,7 +21,7 @@ AI/ai_pipeline/data/
 AI/ai_pipeline/outputs/
 AI/ai_pipeline/bigru_frame_selector/outputs/
 *.npy
-AI/slowfast/outputs/
+AI/slowfast/outputs/runs/
 PGL-SUM/data/
 PGL-SUM/Summaries/
 storage/
