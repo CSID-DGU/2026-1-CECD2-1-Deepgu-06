@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getUsers, approveUser, deleteUser, assignCamera } from "../api/user";
+import { getUsers, approveUser, deleteUser, assignCamera, unassignCamera, getUserCameras } from "../api/user";
 import { getCameras } from "../api/camera";
 import type { User } from "../api/user";
 import type { Camera } from "../api/camera";
@@ -12,6 +12,7 @@ const statusClass: Record<string, string> = { ACTIVE: "ok", PENDING: "primary", 
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [cameras, setCameras] = useState<Camera[]>([]);
+  const [assignedCameras, setAssignedCameras] = useState<{ cameraId: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<User | null>(null);
   const [search, setSearch] = useState("");
@@ -44,12 +45,36 @@ const UsersPage = () => {
     finally { setActionLoading(false); }
   };
 
+  const loadAssignedCameras = async (user: User) => {
+    try {
+      const cams = await getUserCameras(user.id);
+      setAssignedCameras(cams);
+    } catch { setAssignedCameras([]); }
+  };
+
+  const handleSelectUser = (user: User) => {
+    setSelected(user);
+    loadAssignedCameras(user);
+  };
+
   const handleAssign = async (camId: string) => {
     if (!selected || !camId) return;
     setAssigningCam(camId);
-    try { await assignCamera(camId, selected.id); await load(); }
-    catch (e: any) { alert(e.response?.data?.detail || "할당 실패"); }
+    try {
+      await assignCamera(camId, selected.id);
+      await loadAssignedCameras(selected);
+    }
+    catch (e: any) { alert(e.response?.data?.message || e.response?.data?.detail || "할당 실패"); }
     finally { setAssigningCam(""); }
+  };
+
+  const handleUnassign = async (camId: string) => {
+    if (!selected) return;
+    try {
+      await unassignCamera(camId, selected.id);
+      await loadAssignedCameras(selected);
+    }
+    catch (e: any) { alert(e.response?.data?.message || "해제 실패"); }
   };
 
   const filtered = users.filter(u =>
@@ -92,7 +117,7 @@ const UsersPage = () => {
               </thead>
               <tbody>
                 {filtered.map(user => (
-                  <tr key={user.id} onClick={() => setSelected(user)} style={{ background: selected?.id === user.id ? "var(--primary-soft)" : undefined }}>
+                  <tr key={user.id} onClick={() => handleSelectUser(user)} style={{ background: selected?.id === user.id ? "var(--primary-soft)" : undefined }}>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{user.name[0]}</div>
@@ -153,9 +178,19 @@ const UsersPage = () => {
                 </select>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ fontSize: 11, color: "var(--ink-4)" }}>할당된 카메라</div>
-                <div style={{ fontSize: 13, color: "var(--ink-3)" }}>— 구현 예정</div>
+                {assignedCameras.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "var(--ink-4)" }}>없음</div>
+                ) : (
+                  assignedCameras.map(c => (
+                    <div key={c.cameraId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+                      <span>{c.name} <span style={{ color: "var(--ink-4)" }}>({c.cameraId})</span></span>
+                      <button className="btn sm" style={{ color: "var(--danger-ink)", borderColor: "transparent", padding: "2px 6px" }}
+                        onClick={() => handleUnassign(c.cameraId)}>해제</button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           ) : (

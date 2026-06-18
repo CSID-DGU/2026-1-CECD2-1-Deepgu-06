@@ -33,3 +33,8 @@ export const unassignCamera = async (cameraId: string, userId: number) => {
   const res = await client.delete(`/api/users/cameras/${cameraId}/assign/${userId}`);
   return res.data.data;
 };
+
+export const getUserCameras = async (userId: number): Promise<{ cameraId: string; name: string }[]> => {
+  const res = await client.get(`/api/users/${userId}/cameras`);
+  return res.data.data;
+};
