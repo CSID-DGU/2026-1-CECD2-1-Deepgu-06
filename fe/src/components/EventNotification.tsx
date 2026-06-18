@@ -21,7 +21,8 @@ const EventNotification = ({ cameraId }: Props) => {
     if (!cameraId) return;
 
     const apiBase = import.meta.env.VITE_API_URL || "";
-    const es = new EventSource(`${apiBase}/api/events/stream?camera_id=${encodeURIComponent(cameraId)}`);
+    const token = localStorage.getItem("token") || "";
+    const es = new EventSource(`${apiBase}/api/events/stream?camera_id=${encodeURIComponent(cameraId)}&token=${encodeURIComponent(token)}`);
 
     es.onmessage = (e) => {
       const data = JSON.parse(e.data);
