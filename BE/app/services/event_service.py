@@ -85,8 +85,11 @@ class EventService:
         size: int = 20,
         status: str | None = None,
         camera_id: str | None = None,
+        allowed_camera_ids: list[str] | None = None,
     ) -> tuple[list[Event], int]:
         query = db.query(Event)
+        if allowed_camera_ids is not None:
+            query = query.filter(Event.camera_id.in_(allowed_camera_ids))
         if status:
             query = query.filter(Event.status == status)
         if camera_id:
