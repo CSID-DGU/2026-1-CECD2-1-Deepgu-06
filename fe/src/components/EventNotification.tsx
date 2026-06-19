@@ -12,7 +12,7 @@ interface Props {
 }
 
 let _id = 0;
-const DURATION = 6000;
+const DURATION = 30000;
 
 const EventNotification = ({ cameraId }: Props) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
