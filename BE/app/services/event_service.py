@@ -103,6 +103,30 @@ class EventService:
         return db.get(Event, event_id)
 
     @staticmethod
+    def attach_video(
+        db: Session,
+        ai_event_id: str,
+        video_bytes: bytes | None = None,
+        thumbnail_bytes_list: list[bytes] | None = None,
+    ) -> Event | None:
+        event = db.query(Event).filter(Event.ai_event_id == ai_event_id).first()
+        if not event:
+            return None
+        if video_bytes:
+            event.s3_key = s3_client.upload_event_video(video_bytes, event.camera_id, event.detected_at)
+        existing_keys = json.loads(event.thumbnail_s3_keys or "[]")
+        for image_bytes in thumbnail_bytes_list or []:
+            if not image_bytes:
+                continue
+            thumb_key = s3_client.upload_event_thumbnail(image_bytes, event.camera_id, event.detected_at)
+            existing_keys.append(thumb_key)
+        if thumbnail_bytes_list:
+            event.thumbnail_s3_keys = json.dumps(existing_keys, ensure_ascii=False)
+        db.commit()
+        db.refresh(event)
+        return event
+
+    @staticmethod
     def update_status(db: Session, event: Event, status: str) -> Event:
         if status not in EventService.ALLOWED_STATUSES:
             raise ValueError("INVALID_STATUS")
