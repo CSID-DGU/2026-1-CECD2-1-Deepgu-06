@@ -81,28 +81,22 @@ async def create_event(
     return success_response(EventItem.model_validate(event).model_dump())
 
 
-@router.patch("/events/by-ai-id/{ai_event_id}/video", status_code=200)
-async def attach_event_video(
+@router.post("/events/broadcast", status_code=200)
+async def broadcast_only(
     request: Request,
-    ai_event_id: str,
-    video: UploadFile | None = File(None),
-    db: Session = Depends(get_db),
+    camera_id: str = Form(...),
+    anomaly_type: str = Form("fight"),
+    confidence: float = Form(...),
+    detected_at: str = Form(...),
 ):
     _check_callback_secret(request)
-    form = await request.form()
-    video_bytes = await video.read() if video else None
-    thumbnail_bytes_list = []
-    thumb_index = 1
-    while True:
-        thumb_upload = form.get(f"thumb_{thumb_index}")
-        if not isinstance(thumb_upload, (UploadFile, StarletteUploadFile)):
-            break
-        thumbnail_bytes_list.append(await thumb_upload.read())
-        thumb_index += 1
-    event = EventService.attach_video(db, ai_event_id, video_bytes, thumbnail_bytes_list)
-    if not event:
-        raise AppException(status_code=404, code="NOT_FOUND", message="이벤트를 찾을 수 없습니다.")
-    return success_response(EventItem.model_validate(event).model_dump())
+    await broadcast_event(camera_id, {
+        "camera_id": camera_id,
+        "anomaly_type": anomaly_type,
+        "confidence": confidence,
+        "detected_at": detected_at,
+    })
+    return success_response({"broadcast": True})
 
 
 @router.post("/event-payloads", status_code=201)
