@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getEvent, updateEventStatus, type EventDetail } from "../api/event";
 import Layout from "../components/Layout";
+import { useAuth } from "../context/AuthContext";
 
 const statusLabel: Record<string, string> = {
   UNREVIEWED: "미검토", REVIEWED: "검토 완료", FALSE_POSITIVE: "오탐",
@@ -12,6 +13,7 @@ const statusClass: Record<string, string> = {
 
 const EventDetailPage = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [ev, setEv] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,7 +124,7 @@ const EventDetailPage = () => {
             </div>
           </div>
 
-          {ev.status === "UNREVIEWED" && (
+          {user?.role === "ADMIN" && ev.status === "UNREVIEWED" && (
             <div className="card" style={{ padding: "18px 20px" }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)", marginBottom: 12 }}>검토</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

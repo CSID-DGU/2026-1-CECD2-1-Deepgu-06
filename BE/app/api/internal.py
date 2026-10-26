@@ -1,4 +1,5 @@
 import json
+import secrets
 import time
 from datetime import datetime
 
@@ -19,37 +20,33 @@ from app.utils.response import success_response
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
+def require_callback_secret(request: Request) -> None:
+    expected = settings.callback_secret.strip()
+    if not expected:
+        raise AppException(
+            status_code=503,
+            code="CALLBACK_SECRET_NOT_CONFIGURED",
+            message="internal callback authentication is not configured",
+        )
+
+    received = request.headers.get("X-Callback-Secret", "")
+    if not secrets.compare_digest(received, expected):
+        raise AppException(status_code=401, code="UNAUTHORIZED", message="invalid callback secret")
+
+
 @router.post("/streams/callback")
 def stream_callback(
-    request: Request,
     payload: StreamCallbackRequest,
     db: Session = Depends(get_db),
+    _: None = Depends(require_callback_secret),
 ):
-    if settings.callback_secret:
-        received = request.headers.get("X-Callback-Secret", "")
-        if received != settings.callback_secret:
-            raise AppException(
-                status_code=401,
-                code="UNAUTHORIZED",
-                message="invalid callback secret",
-            )
-
     print(f"[METRIC] callback_received camera={payload.camera_id} status={payload.status} ts={time.time():.3f}")
     service = StreamService(db)
     service.handle_callback(payload)
     return {"success": True}
 
-
-def _check_callback_secret(request: Request) -> None:
-    if settings.callback_secret:
-        received = request.headers.get("X-Callback-Secret", "")
-        if received != settings.callback_secret:
-            raise AppException(status_code=401, code="UNAUTHORIZED", message="invalid callback secret")
-
-
 @router.post("/events", status_code=201)
 async def create_event(
-    request: Request,
     camera_id: str = Form(...),
     detected_at: datetime = Form(...),
     anomaly_type: str = Form(...),
@@ -57,9 +54,8 @@ async def create_event(
     description: str | None = Form(None),
     video: UploadFile | None = File(None),
     db: Session = Depends(get_db),
+    _: None = Depends(require_callback_secret),
 ):
-    _check_callback_secret(request)
-
     payload = EventCreateRequest(
         camera_id=camera_id,
         detected_at=detected_at,
@@ -83,13 +79,12 @@ async def create_event(
 
 @router.post("/events/broadcast", status_code=200)
 async def broadcast_only(
-    request: Request,
     camera_id: str = Form(...),
     anomaly_type: str = Form("fight"),
     confidence: float = Form(...),
     detected_at: str = Form(...),
+    _: None = Depends(require_callback_secret),
 ):
-    _check_callback_secret(request)
     await broadcast_event(camera_id, {
         "camera_id": camera_id,
         "anomaly_type": anomaly_type,
@@ -103,9 +98,8 @@ async def broadcast_only(
 async def create_event_payloads(
     request: Request,
     db: Session = Depends(get_db),
+    _: None = Depends(require_callback_secret),
 ):
-    _check_callback_secret(request)
-
     form = await request.form()
     raw_payload = form.get("payload")
     if not raw_payload:

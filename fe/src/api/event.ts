@@ -3,7 +3,10 @@ import client from "./client";
 export interface EventItem {
   id: number;
   camera_id: string;
+  ai_event_id: string | null;
   detected_at: string;
+  ended_at: string | null;
+  duration_sec: number | null;
   anomaly_type: string;
   confidence: number;
   status: "UNREVIEWED" | "REVIEWED" | "FALSE_POSITIVE";
@@ -13,6 +16,7 @@ export interface EventItem {
 export interface EventDetail extends EventItem {
   description: string | null;
   video_url: string | null;
+  thumbnail_urls: string[];
 }
 
 export interface EventListResponse {

@@ -1,4 +1,5 @@
 from pathlib import Path
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -32,7 +33,14 @@ class Settings(BaseSettings):
     mediamtx_rtmp_app: str = "live"
 
     instance_id: str = "media-instance-1"
-    callback_secret: str = ""
+    callback_secret: str
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    @model_validator(mode="after")
+    def validate_secrets(self):
+        if self.app_env.lower() == "production" and not self.callback_secret.strip():
+            raise ValueError("CALLBACK_SECRET must not be empty in production")
+        return self
 
     class Config:
         env_file = ".env"

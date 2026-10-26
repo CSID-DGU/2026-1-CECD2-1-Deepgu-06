@@ -4,14 +4,14 @@ export interface Camera {
   id: number;
   cameraId: string;
   name: string;
-  location: string;
+  location: string | null;
   status: string;
   active: boolean;
 }
 
 export interface CameraDetail extends Camera {
   streamKey: string;
-  description: string;
+  description: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,7 +22,7 @@ export interface StreamStatus {
   current_session: {
     session_id: number;
     status: string;
-    hls_url: string;
+    hls_url: string | null;
     started_at: string;
     stopped_at: string | null;
   } | null;

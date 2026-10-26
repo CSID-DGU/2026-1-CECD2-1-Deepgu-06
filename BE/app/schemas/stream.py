@@ -3,10 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class StreamStartRequest(BaseModel):
-    force_restart: bool = False
-
-
 class StreamControlResponse(BaseModel):
     camera_id: str
     status: str
@@ -65,7 +61,7 @@ class MediaStatusData(BaseModel):
     pid: int | None = None
     playlist_exists: bool
     playlist_ready: bool
-    playlist_path: str
+    playlist_path: str | None
     instance_id: str | None = None
 
 

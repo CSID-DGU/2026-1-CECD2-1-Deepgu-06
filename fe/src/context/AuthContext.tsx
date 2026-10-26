@@ -1,9 +1,14 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 
 interface AuthUser {
   id: number;
-  role: string;
+  role: "ADMIN" | "USER";
+}
+
+interface AuthSession {
+  token: string;
+  user: AuthUser;
 }
 
 interface AuthContextType {
@@ -15,33 +20,66 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [token, setTokenState] = useState<string | null>(localStorage.getItem("token"));
-  const [user, setUser] = useState<AuthUser | null>(null);
+const decodeUser = (token: string): AuthUser | null => {
+  try {
+    const decoded = jwtDecode<{ sub: string; role: string; exp?: number }>(token);
+    const id = Number(decoded.sub);
 
-  useEffect(() => {
-    if (token) {
-      try {
-        const decoded = jwtDecode<{ sub: string; role: string }>(token);
-        setUser({ id: Number(decoded.sub), role: decoded.role });
-      } catch {
-        setUser(null);
-      }
-    } else {
-      setUser(null);
+    if (!Number.isInteger(id) || !["ADMIN", "USER"].includes(decoded.role)) {
+      return null;
     }
-  }, [token]);
+    if (decoded.exp !== undefined && decoded.exp * 1000 <= Date.now()) {
+      return null;
+    }
+
+    return { id, role: decoded.role as AuthUser["role"] };
+  } catch {
+    return null;
+  }
+};
+
+const readStoredSession = (): AuthSession | null => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  const user = decodeUser(token);
+  if (!user) {
+    localStorage.removeItem("token");
+    return null;
+  }
+  return { token, user };
+};
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [session, setSession] = useState<AuthSession | null>(() => readStoredSession());
 
   const setToken = (t: string | null) => {
-    if (t) localStorage.setItem("token", t);
-    else localStorage.removeItem("token");
-    setTokenState(t);
+    if (!t) {
+      localStorage.removeItem("token");
+      setSession(null);
+      return;
+    }
+
+    const user = decodeUser(t);
+    if (!user) {
+      localStorage.removeItem("token");
+      setSession(null);
+      return;
+    }
+
+    localStorage.setItem("token", t);
+    setSession({ token: t, user });
   };
 
   const logout = () => setToken(null);
 
   return (
-    <AuthContext.Provider value={{ user, token, setToken, logout }}>
+    <AuthContext.Provider value={{
+      user: session?.user ?? null,
+      token: session?.token ?? null,
+      setToken,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );

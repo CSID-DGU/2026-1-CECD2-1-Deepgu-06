@@ -1,15 +1,18 @@
 import os
 import requests
 
-BE_BASE_URL = "http://43.201.17.169:8000"
-CALLBACK_SECRET = "deepgu"
+BE_BASE_URL = os.getenv("BE_BASE_URL", "").rstrip("/")
+CALLBACK_SECRET = os.getenv("CALLBACK_SECRET", "").strip()
 
 
 def post_event(camera_id, detected_at, anomaly_type, confidence,
                description="", video_path=None):
-    headers = {}
-    if CALLBACK_SECRET:
-        headers["X-Callback-Secret"] = CALLBACK_SECRET
+    if not BE_BASE_URL:
+        raise RuntimeError("BE_BASE_URL is not configured")
+    if not CALLBACK_SECRET:
+        raise RuntimeError("CALLBACK_SECRET is not configured")
+
+    headers = {"X-Callback-Secret": CALLBACK_SECRET}
 
     data = {
         "camera_id": camera_id,

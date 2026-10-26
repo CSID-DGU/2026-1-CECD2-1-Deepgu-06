@@ -9,7 +9,6 @@ from app.schemas.common import ApiResponse
 from app.schemas.stream import (
     StreamControlResponse,
     StreamSessionItem,
-    StreamStartRequest,
     StreamStatusResponse,
 )
 from app.services.camera_service import CameraService
@@ -41,7 +40,6 @@ def _check_camera_access(camera_id: str, current_user: User, db: Session) -> Non
 )
 async def start_stream(
     camera_id: str,
-    request: StreamStartRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

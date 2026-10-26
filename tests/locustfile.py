@@ -2,7 +2,7 @@
 BE API 부하 테스트
 사용법:
     pip install locust
-    locust -f locustfile.py --users 30 --spawn-rate 3 --host http://43.201.17.169:8000
+    locust -f locustfile.py --users 30 --spawn-rate 3 --host http://localhost:8000
 
 환경변수:
     CALLBACK_SECRET  - X-Callback-Secret 값

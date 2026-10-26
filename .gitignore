@@ -59,6 +59,7 @@ CLAUDE.md
 node_modules/
 fe/dist/
 fe/.env.local
+fe/.npm-cache/
 
 # mac/windows
 .DS_Store

@@ -19,7 +19,6 @@ Usage:
 
 Environment variables:
     EVENT_PAYLOAD_API   Full backend endpoint for payload POST
-                        default: http://43.201.17.169:8000/internal/event-payloads
     CALLBACK_SECRET     Backend callback secret header value
     PUBLIC_MEDIA_BASE_URL
                         Optional public base URL for media links
@@ -55,11 +54,8 @@ from utils.config import load_config
 from utils.video import save_video
 
 
-EVENT_PAYLOAD_API = os.getenv(
-    "EVENT_PAYLOAD_API",
-    "http://43.201.17.169:8000/internal/event-payloads",
-)
-CALLBACK_SECRET = os.getenv("CALLBACK_SECRET", "deepgu")
+EVENT_PAYLOAD_API = os.getenv("EVENT_PAYLOAD_API", "").strip()
+CALLBACK_SECRET = os.getenv("CALLBACK_SECRET", "").strip()
 PUBLIC_MEDIA_BASE_URL = os.getenv("PUBLIC_MEDIA_BASE_URL", "").rstrip("/")
 SLOWFAST_CONFIG = os.getenv(
     "SLOWFAST_CONFIG",
@@ -182,9 +178,12 @@ def _filter_new_events(payload: Dict, sent_cache: Dict[Tuple[str, int, int], dat
 
 
 def _post_payload(payload: Dict):
-    headers = {}
-    if CALLBACK_SECRET:
-        headers["X-Callback-Secret"] = CALLBACK_SECRET
+    if not EVENT_PAYLOAD_API:
+        raise RuntimeError("EVENT_PAYLOAD_API is not configured")
+    if not CALLBACK_SECRET:
+        raise RuntimeError("CALLBACK_SECRET is not configured")
+
+    headers = {"X-Callback-Secret": CALLBACK_SECRET}
     data = {
         "payload": json.dumps(payload, ensure_ascii=False),
         "camera_id": str(payload.get("stream_id") or payload.get("cctv_id") or ""),

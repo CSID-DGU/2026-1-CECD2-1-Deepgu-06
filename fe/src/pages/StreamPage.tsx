@@ -74,7 +74,7 @@ const StreamPage = () => {
 
   const filteredCameras = cameras.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.location.toLowerCase().includes(search.toLowerCase())
+    (c.location ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   const statusColors: Record<string, string> = {
@@ -89,7 +89,7 @@ const StreamPage = () => {
     <EventNotification cameraId={selected?.cameraId ?? null} />
     <Layout
       title={selected ? selected.name : "실시간 스트리밍"}
-      subtitle={selected ? selected.location : undefined}
+      subtitle={selected?.location ?? undefined}
       topbarRight={
         selected && isRunning ? (
           <span className="chip ok dot">라이브</span>
@@ -126,7 +126,7 @@ const StreamPage = () => {
                       {cam.name}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {cam.location}
+                      {cam.location ?? "위치 미지정"}
                     </div>
                   </div>
                 </div>
@@ -201,7 +201,7 @@ const StreamPage = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
                   {[
                     ["카메라 ID", selected.cameraId],
-                    ["위치", selected.location],
+                    ["위치", selected.location ?? "위치 미지정"],
                     ["상태", statusLabels[selected.status] || selected.status],
                   ].map(([k, v]) => (
                     <div key={k}>
